@@ -48,6 +48,20 @@ const parseGvizResponse = (text) => {
   return payload.table || { rows: [] };
 };
 
+const getDeclaredMonthFromRows = (rows) => {
+  for (const row of rows) {
+    const raw = row?.[0];
+    if (typeof raw !== "string") {
+      continue;
+    }
+    const normalized = normalizeText(raw);
+    if (normalized.startsWith("месяц")) {
+      return normalized.replace("месяц", "").trim();
+    }
+  }
+  return "";
+};
+
 const fetchSheetRows = async (sheetId, sheetName) => {
   const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`;
   const response = await fetch(url);
@@ -91,11 +105,21 @@ const readByPrefixes = (metrics, prefixes) => {
   return 0;
 };
 
-const pickMonthRows = async (sheetId, candidates) => {
+const pickMonthRows = async (sheetId, candidates, expectedMonthName) => {
   let lastError;
+  const expected = normalizeText(expectedMonthName);
+
   for (const candidate of candidates) {
     try {
       const rows = await fetchSheetRows(sheetId, candidate);
+
+      // Important: Google sometimes returns a different sheet (often January)
+      // when the requested sheet name doesn't resolve exactly.
+      const declaredMonth = getDeclaredMonthFromRows(rows);
+      if (declaredMonth && !declaredMonth.includes(expected)) {
+        continue;
+      }
+
       return rows;
     } catch (error) {
       lastError = error;
@@ -105,7 +129,7 @@ const pickMonthRows = async (sheetId, candidates) => {
 };
 
 const parseMonth = async (sheetId, spec) => {
-  const rows = await pickMonthRows(sheetId, spec.candidates);
+  const rows = await pickMonthRows(sheetId, spec.candidates, spec.name);
   const metrics = readMetricMap(rows);
 
   const revenue = readByPrefixes(metrics, ["Выручка"]);
