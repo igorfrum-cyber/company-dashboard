@@ -26,7 +26,8 @@ import {
   Users,
   CircleDollarSign,
 } from "lucide-react";
-import { loadDashboardDataFromGoogleSheets } from "./googleSheets";
+import { loadDashboardDataFromGoogleSheets } from "./services/googleSheets";
+
 const FALLBACK_DATA = [
   {
     name: "Январь",
@@ -437,6 +438,7 @@ const App = () => {
                 <th className="px-6 py-4 font-bold">EBITDA</th>
                 <th className="px-6 py-4 font-bold">Чистая прибыль</th>
                 <th className="px-6 py-4 font-bold text-right">Доходы ТВ</th>
+                <th className="px-6 py-4 font-bold text-right">Нераспределенная прибыль</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -447,6 +449,9 @@ const App = () => {
                   <td className="px-6 py-4 text-slate-600">{formatCurrency(row.ebitda)}</td>
                   <td className="px-6 py-4 text-slate-600">{formatCurrency(row.netProfit)}</td>
                   <td className="px-6 py-4 text-right font-black text-fuchsia-600">{formatCurrency(row.tvIncome)}</td>
+                  <td className="px-6 py-4 text-right font-bold text-emerald-600">
+                    {formatCurrency(row.netProfit - row.tvIncome)}
+                  </td>
                 </tr>
               ))}
             </tbody>
