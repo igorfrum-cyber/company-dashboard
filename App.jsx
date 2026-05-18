@@ -26,7 +26,7 @@ import {
   Users,
   CircleDollarSign,
 } from "lucide-react";
-import { loadDashboardDataFromGoogleSheets } from "./services/googleSheets";
+import { loadDashboardDataFromGoogleSheets } from "./googleSheets";
 
 const FALLBACK_DATA = [
   {
