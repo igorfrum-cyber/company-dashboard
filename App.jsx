@@ -449,7 +449,7 @@ const App = () => {
                   <td className="px-6 py-4 text-slate-600">{formatCurrency(row.ebitda)}</td>
                   <td className="px-6 py-4 text-slate-600">{formatCurrency(row.netProfit)}</td>
                   <td className="px-6 py-4 text-right font-black text-fuchsia-600">{formatCurrency(row.tvIncome)}</td>
-                  <td className="px-6 py-4 text-right font-bold text-emerald-600">
+                  <td className="px-6 py-4 text-right font-bold text-emerald-700">
                     {formatCurrency(row.netProfit - row.tvIncome)}
                   </td>
                 </tr>
