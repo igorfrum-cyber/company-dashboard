@@ -102,6 +102,9 @@ const formatCurrency = (val) =>
 
 const formatMillion = (val) => `${((val || 0) / 1000000).toFixed(2)} млн`;
 
+const OPEX_COLORS = ["#4f46e5", "#06b6d4", "#94a3b8", "#0ea5e9", "#f59e0b", "#22c55e", "#64748b", "#8b5cf6", "#10b981"];
+const TAX_COLORS = ["#f97316", "#ef4444", "#f59e0b", "#dc2626", "#fb7185", "#b91c1c", "#7f1d1d"];
+
 const Card = ({ title, value, subValue, icon: Icon, colorClass }) => (
   <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-between">
     <div className="flex justify-between items-start mb-4">
@@ -176,12 +179,29 @@ const App = () => {
   }, [selectedMonth]);
 
   const opexBreakdown = useMemo(() => {
-    const d = selectedMonth.opexDetails;
-    return [
-      { name: "Зарплаты", value: d.salaries, color: "#4f46e5" },
-      { name: "Доставка", value: d.delivery, color: "#06b6d4" },
-      { name: "Прочие OpEx", value: d.other, color: "#94a3b8" },
-    ];
+    const baseItems =
+      selectedMonth.opexItems?.length > 0
+        ? selectedMonth.opexItems
+        : [
+            { name: "Зарплаты", value: selectedMonth.opexDetails.salaries },
+            { name: "Доставка", value: selectedMonth.opexDetails.delivery },
+            { name: "Прочие OpEx", value: selectedMonth.opexDetails.other },
+          ];
+
+    return baseItems.map((item, index) => ({
+      ...item,
+      color: OPEX_COLORS[index % OPEX_COLORS.length],
+    }));
+  }, [selectedMonth]);
+
+  const taxBreakdown = useMemo(() => {
+    const baseItems =
+      selectedMonth.taxItems?.length > 0 ? selectedMonth.taxItems : [{ name: "Налоги и фин. расходы", value: selectedMonth.taxes }];
+
+    return baseItems.map((item, index) => ({
+      ...item,
+      color: TAX_COLORS[index % TAX_COLORS.length],
+    }));
   }, [selectedMonth]);
 
   return (
@@ -299,7 +319,7 @@ const App = () => {
           {activeTab === "structure" && (
             <div className="space-y-8 animate-in fade-in duration-500">
               <div className="flex justify-between items-center">
-                <h2 className="text-xl font-bold">Расшифровка операционных расходов (OpEx)</h2>
+                <h2 className="text-xl font-bold">Расшифровка расходов и налогов</h2>
                 <div className="flex gap-2">
                   {processedData.map((m) => (
                     <button
@@ -314,35 +334,81 @@ const App = () => {
                   ))}
                 </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-                <div className="h-[350px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie data={opexBreakdown} cx="50%" cy="50%" innerRadius={80} outerRadius={120} paddingAngle={5} dataKey="value">
-                        {opexBreakdown.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(v) => formatCurrency(v)} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
                 <div className="space-y-4">
-                  <h3 className="text-lg font-bold text-slate-700">Статьи за {selectedMonth.name}</h3>
-                  {opexBreakdown.map((item) => (
-                    <div key={item.name} className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
-                      <div className="flex items-center gap-3">
-                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }}></div>
-                        <span className="font-medium">{item.name}</span>
-                      </div>
-                      <div className="text-right">
-                        <div className="font-bold">{formatCurrency(item.value)}</div>
-                        <div className="text-xs text-slate-400">
-                          {selectedMonth.opex ? ((item.value / selectedMonth.opex) * 100).toFixed(1) : 0}% от расходов
-                        </div>
-                      </div>
+                  <h3 className="text-lg font-bold text-slate-700">Операционные расходы (OpEx): {selectedMonth.name}</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+                    <div className="h-[320px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie data={opexBreakdown} cx="50%" cy="50%" innerRadius={74} outerRadius={116} paddingAngle={3} dataKey="value">
+                            {opexBreakdown.map((entry, index) => (
+                              <Cell key={`opex-cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Pie>
+                          <Tooltip formatter={(v) => formatCurrency(v)} />
+                        </PieChart>
+                      </ResponsiveContainer>
                     </div>
-                  ))}
+                    <div className="space-y-3 max-h-[320px] overflow-auto pr-2">
+                      {opexBreakdown.map((item) => (
+                        <div key={item.name} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
+                          <div className="flex items-center gap-3">
+                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }}></div>
+                            <span className="font-medium">{item.name}</span>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-bold">{formatCurrency(item.value)}</div>
+                            <div className="text-xs text-slate-400">
+                              {selectedMonth.opex ? ((item.value / selectedMonth.opex) * 100).toFixed(1) : 0}% от OpEx
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="pt-3 border-t border-slate-200 flex justify-between font-black text-slate-800">
+                    <span>ИТОГО OpEx</span>
+                    <span>{formatCurrency(selectedMonth.opex)}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <h3 className="text-lg font-bold text-slate-700">Налоги и фин. расходы: {selectedMonth.name}</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+                    <div className="h-[320px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie data={taxBreakdown} cx="50%" cy="50%" innerRadius={74} outerRadius={116} paddingAngle={3} dataKey="value">
+                            {taxBreakdown.map((entry, index) => (
+                              <Cell key={`tax-cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Pie>
+                          <Tooltip formatter={(v) => formatCurrency(v)} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="space-y-3 max-h-[320px] overflow-auto pr-2">
+                      {taxBreakdown.map((item) => (
+                        <div key={item.name} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
+                          <div className="flex items-center gap-3">
+                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }}></div>
+                            <span className="font-medium">{item.name}</span>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-bold">{formatCurrency(item.value)}</div>
+                            <div className="text-xs text-slate-400">
+                              {selectedMonth.taxes ? ((item.value / selectedMonth.taxes) * 100).toFixed(1) : 0}% от налогов
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="pt-3 border-t border-slate-200 flex justify-between font-black text-slate-800">
+                    <span>ИТОГО налоги/фин. расходы</span>
+                    <span>{formatCurrency(selectedMonth.taxes)}</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -449,7 +515,7 @@ const App = () => {
                   <td className="px-6 py-4 text-slate-600">{formatCurrency(row.ebitda)}</td>
                   <td className="px-6 py-4 text-slate-600">{formatCurrency(row.netProfit)}</td>
                   <td className="px-6 py-4 text-right font-black text-fuchsia-600">{formatCurrency(row.tvIncome)}</td>
-                  <td className="px-6 py-4 text-right font-bold text-emerald-700">
+                  <td className="px-6 py-4 text-right font-bold text-emerald-600">
                     {formatCurrency(row.netProfit - row.tvIncome)}
                   </td>
                 </tr>

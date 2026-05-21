@@ -36,6 +36,8 @@ const toNumber = (value) => {
   return 0;
 };
 
+const cleanLabel = (value) => String(value ?? "").replace(/\s+/g, " ").trim();
+
 const parseGvizResponse = (text) => {
   const match = text.match(/setResponse\(([\s\S]+)\);/);
   if (!match?.[1]) {
@@ -105,6 +107,57 @@ const readByPrefixes = (metrics, prefixes) => {
   return 0;
 };
 
+const startsWithAny = (label, prefixes) =>
+  prefixes.some((prefix) => label.startsWith(normalizeText(prefix)));
+
+const extractBreakdown = ({ rows, startPrefixes, endPrefixes }) => {
+  const startIndex = rows.findIndex((row) => {
+    const rawLabel = row[0];
+    if (typeof rawLabel !== "string") {
+      return false;
+    }
+    return startsWithAny(normalizeText(rawLabel), startPrefixes);
+  });
+
+  if (startIndex < 0) {
+    return [];
+  }
+
+  const breakdown = [];
+  for (let i = startIndex + 1; i < rows.length; i += 1) {
+    const row = rows[i];
+    const rawLabel = row[0];
+    const rawValue = row[1];
+    if (typeof rawLabel !== "string") {
+      continue;
+    }
+
+    const normalizedLabel = normalizeText(rawLabel);
+    if (!normalizedLabel) {
+      continue;
+    }
+
+    if (startsWithAny(normalizedLabel, endPrefixes)) {
+      break;
+    }
+
+    if (normalizedLabel.startsWith("итого")) {
+      continue;
+    }
+
+    if (rawValue === null || rawValue === undefined) {
+      continue;
+    }
+
+    breakdown.push({
+      name: cleanLabel(rawLabel),
+      value: toNumber(rawValue),
+    });
+  }
+
+  return breakdown;
+};
+
 const pickMonthRows = async (sheetId, candidates, expectedMonthName) => {
   let lastError;
   const expected = normalizeText(expectedMonthName);
@@ -143,6 +196,18 @@ const parseMonth = async (sheetId, spec) => {
   const tvDividends = readByPrefixes(metrics, ["Дивиденды"]);
   const tvOtherIncome = readByPrefixes(metrics, ["Прочие доходы"]);
 
+  const opexItems = extractBreakdown({
+    rows,
+    startPrefixes: ["Операционные расходы"],
+    endPrefixes: ["EBITDA"],
+  });
+
+  const taxItems = extractBreakdown({
+    rows,
+    startPrefixes: ["Налоговые и финансовые расходы"],
+    endPrefixes: ["Чистая прибыль"],
+  });
+
   if (revenue <= 0) {
     return null;
   }
@@ -163,6 +228,8 @@ const parseMonth = async (sheetId, spec) => {
     tvIncome,
     tvDividends,
     tvOtherIncome,
+    opexItems,
+    taxItems,
     opexDetails: {
       salaries,
       delivery,
