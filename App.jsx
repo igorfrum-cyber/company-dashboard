@@ -446,7 +446,26 @@ const App = () => {
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                     <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
                     <YAxis axisLine={false} tickLine={false} tickFormatter={(v) => `${(v / 1e6).toFixed(1)}M`} />
-                    <Tooltip formatter={(value) => formatCurrency(value)} />
+                    <Tooltip
+                      cursor={{ fill: "rgba(0,0,0,0.02)" }}
+                      content={({ active, payload }) => {
+                        if (!active || !payload?.length) {
+                          return null;
+                        }
+
+                        const data = payload[0]?.payload;
+                        const amount = Number(data?.value || 0);
+                        return (
+                          <div className="bg-white p-3 rounded-lg shadow-xl border border-slate-100">
+                            <p className="font-bold text-slate-800">{data?.name}</p>
+                            <p className={`${amount < 0 ? "text-red-500" : "text-blue-600"} font-mono font-bold`}>
+                              {amount > 0 ? "+" : ""}
+                              {formatCurrency(amount)}
+                            </p>
+                          </div>
+                        );
+                      }}
+                    />
                     <Bar dataKey="range" radius={[4, 4, 4, 4]}>
                       {waterfallData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
