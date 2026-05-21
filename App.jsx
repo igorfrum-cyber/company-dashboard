@@ -188,7 +188,11 @@ const App = () => {
             { name: "Прочие OpEx", value: selectedMonth.opexDetails.other },
           ];
 
-    return baseItems.map((item, index) => ({
+    const sortedItems = [...baseItems]
+      .filter((item) => (item.value || 0) > 0)
+      .sort((a, b) => (b.value || 0) - (a.value || 0));
+
+    return sortedItems.map((item, index) => ({
       ...item,
       color: OPEX_COLORS[index % OPEX_COLORS.length],
     }));
@@ -198,7 +202,11 @@ const App = () => {
     const baseItems =
       selectedMonth.taxItems?.length > 0 ? selectedMonth.taxItems : [{ name: "Налоги и фин. расходы", value: selectedMonth.taxes }];
 
-    return baseItems.map((item, index) => ({
+    const sortedItems = [...baseItems]
+      .filter((item) => (item.value || 0) > 0)
+      .sort((a, b) => (b.value || 0) - (a.value || 0));
+
+    return sortedItems.map((item, index) => ({
       ...item,
       color: TAX_COLORS[index % TAX_COLORS.length],
     }));
