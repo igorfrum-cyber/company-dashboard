@@ -321,8 +321,8 @@ const App = () => {
                     <Tooltip formatter={(value, name) => [name.includes("%") ? `${value}%` : formatCurrency(value), name]} />
                     <Bar yAxisId="left" dataKey="revenue" name="Выручка" fill="#3b82f6" radius={[6, 6, 0, 0]} barSize={60} />
                     <Bar yAxisId="left" dataKey="ebitda" name="EBITDA" fill="#10b981" radius={[6, 6, 0, 0]} barSize={60} />
-                    <Bar yAxisId="left" dataKey="netProfit" name="Чистая прибыль" fill="#f59e0b" radius={[6, 6, 0, 0]} barSize={60} />
                     <Line yAxisId="right" type="monotone" dataKey="ebitdaMargin" name="Рентабельность EBITDA %" stroke="#059669" strokeWidth={3} dot={{ r: 6, fill: "#059669" }} />
+                    <Bar yAxisId="left" dataKey="netProfit" name="Чистая прибыль" fill="#f59e0b" radius={[6, 6, 0, 0]} barSize={60} />
                     <Line yAxisId="right" type="monotone" dataKey="netMargin" name="Рентабельность чистой прибыли %" stroke="#f59e0b" strokeWidth={3} dot={{ r: 6, fill: "#f59e0b" }} />
                   </ComposedChart>
                 </ResponsiveContainer>
