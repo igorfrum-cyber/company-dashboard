@@ -41,13 +41,15 @@ const BUSINESS_UNITS = [
 ];
 
 const Card = ({ title, value, subValue, icon: Icon, colorClass, children }) => (
-  <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex min-h-[180px] flex-col">
+  <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex min-h-[180px] flex-col">
     <div className="space-y-5">
-      <div className="flex justify-between items-start">
-        <div className={`p-3 rounded-xl ${colorClass}`}>
+      <div className="flex items-start justify-between gap-4">
+        <div className={`shrink-0 p-3 rounded-xl ${colorClass}`}>
           <Icon size={24} className="text-white" />
         </div>
-        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">{title}</span>
+        <span className="min-w-0 flex-1 break-words text-right text-[11px] font-bold uppercase leading-snug tracking-wider text-slate-400">
+          {title}
+        </span>
       </div>
       <div>
         <h3 className="text-2xl font-bold text-slate-800">{value}</h3>
@@ -244,9 +246,9 @@ const App = () => {
     : "Динамика операционных и финансовых расходов";
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans text-slate-900">
-      <div className="mx-auto flex max-w-7xl flex-col gap-6 lg:flex-row lg:items-start">
-        <aside className="w-full lg:sticky lg:top-8 lg:w-48 lg:shrink-0">
+    <div className="min-h-screen bg-slate-50 px-3 py-4 font-sans text-slate-900 md:px-5 md:py-6">
+      <div className="mx-auto flex max-w-[1760px] flex-col gap-5 lg:flex-row lg:items-start">
+        <aside className="w-full lg:sticky lg:top-6 lg:w-44 lg:shrink-0">
           <div className="flex gap-2 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm lg:flex-col lg:overflow-visible">
             {BUSINESS_UNITS.map((unit) => {
               const isActive = activeBusinessUnit === unit.id;
@@ -317,7 +319,7 @@ const App = () => {
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-5 mb-8">
           <Card
             title={`Выручка (${revenueCardMonth.name})`}
             value={formatMillion(revenueCardMonth.revenue)}
