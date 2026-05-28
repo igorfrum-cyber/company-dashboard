@@ -34,23 +34,25 @@ import { formatCurrency, formatMillion, formatRevenueShare } from "./utils/forma
 const SHEET_ID = import.meta.env.VITE_GOOGLE_SHEET_ID || "";
 
 const Card = ({ title, value, subValue, icon: Icon, colorClass, children }) => (
-  <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex min-h-[180px] flex-col gap-5">
-    <div className="flex justify-between items-start">
-      <div className={`p-3 rounded-xl ${colorClass}`}>
-        <Icon size={24} className="text-white" />
+  <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex min-h-[180px] flex-col">
+    <div className="space-y-5">
+      <div className="flex justify-between items-start">
+        <div className={`p-3 rounded-xl ${colorClass}`}>
+          <Icon size={24} className="text-white" />
+        </div>
+        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">{title}</span>
       </div>
-      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">{title}</span>
+      <div>
+        <h3 className="text-2xl font-bold text-slate-800">{value}</h3>
+        <div className="text-sm text-slate-500 mt-1">{subValue}</div>
+      </div>
     </div>
-    <div>
-      <h3 className="text-2xl font-bold text-slate-800">{value}</h3>
-      <div className="text-sm text-slate-500 mt-1">{subValue}</div>
-      {children}
-    </div>
+    {children && <div className="mt-auto pt-5">{children}</div>}
   </div>
 );
 
 const MonthSelector = ({ value, months, onChange }) => (
-  <label className="mt-4 inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-600">
+  <label className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-600">
     <span>Месяц</span>
     <select
       value={value}
