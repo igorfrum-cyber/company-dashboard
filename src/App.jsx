@@ -43,7 +43,7 @@ const Card = ({ title, value, subValue, icon: Icon, colorClass, children }) => (
     </div>
     <div>
       <h3 className="text-2xl font-bold text-slate-800">{value}</h3>
-      <p className="text-sm text-slate-500 mt-1">{subValue}</p>
+      <div className="text-sm text-slate-500 mt-1">{subValue}</div>
       {children}
     </div>
   </div>
@@ -139,6 +139,7 @@ const App = () => {
   const averageMonthlyTvIncome = getAverage(processedData, "tvIncome");
   const ytdEbitdaMargin = getYtdMargin(processedData, "ebitda");
   const ytdNetMargin = getYtdMargin(processedData, "netProfit");
+  const expensesCardTotal = (expensesCardMonth.opex || 0) + (expensesCardMonth.taxes || 0);
   const updateCardMonth = (card, monthName) => {
     setCardMonths((current) => ({ ...current, [card]: monthName }));
   };
@@ -270,8 +271,13 @@ const App = () => {
           </Card>
           <Card
             title={`Расходы (${expensesCardMonth.name})`}
-            value={formatCurrency(expensesCardMonth.opex)}
-            subValue={`Фин. расходы: ${formatCurrency(expensesCardMonth.taxes)}`}
+            value={formatCurrency(expensesCardTotal)}
+            subValue={
+              <span className="space-y-1">
+                <span className="block">Операционные: {formatCurrency(expensesCardMonth.opex)}</span>
+                <span className="block">Финансовые: {formatCurrency(expensesCardMonth.taxes)}</span>
+              </span>
+            }
             icon={ArrowDownRight}
             colorClass="bg-indigo-500"
           >
@@ -282,16 +288,16 @@ const App = () => {
             />
           </Card>
           <Card
-            title="Средняя маржа"
+            title="Средняя маржа за год"
             value={`${ytdEbitdaMargin.toFixed(1)}% EBITDA`}
-            subValue={`${ytdNetMargin.toFixed(1)}% чистая маржа`}
+            subValue={<span className="block text-2xl font-bold text-slate-800">{ytdNetMargin.toFixed(1)}% чистая прибыль</span>}
             icon={Percent}
             colorClass="bg-amber-500"
           />
           <Card
-            title="Среднее в месяц"
+            title="Среднемесячная прибыль"
             value={formatMillion(averageMonthlyProfit)}
-            subValue={`Доходы ТВ: ${formatCurrency(averageMonthlyTvIncome)}`}
+            subValue={`Средние доходы ТВ: ${formatCurrency(averageMonthlyTvIncome)}`}
             icon={CircleDollarSign}
             colorClass="bg-fuchsia-500"
           />
