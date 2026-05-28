@@ -23,8 +23,8 @@ import {
   FileText,
   Zap,
   Info,
-  Users,
   CircleDollarSign,
+  ChevronDown,
 } from "lucide-react";
 import { FALLBACK_DATA } from "./data/fallbackData";
 import { loadDashboardDataFromGoogleSheets } from "./services/googleSheets";
@@ -33,8 +33,8 @@ import { formatCurrency, formatMillion, formatRevenueShare } from "./utils/forma
 
 const SHEET_ID = import.meta.env.VITE_GOOGLE_SHEET_ID || "";
 
-const Card = ({ title, value, subValue, icon: Icon, colorClass }) => (
-  <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-between">
+const Card = ({ title, value, subValue, icon: Icon, colorClass, children }) => (
+  <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-between min-h-[180px]">
     <div className="flex justify-between items-start mb-4">
       <div className={`p-3 rounded-xl ${colorClass}`}>
         <Icon size={24} className="text-white" />
@@ -44,14 +44,56 @@ const Card = ({ title, value, subValue, icon: Icon, colorClass }) => (
     <div>
       <h3 className="text-2xl font-bold text-slate-800">{value}</h3>
       <p className="text-sm text-slate-500 mt-1">{subValue}</p>
+      {children}
     </div>
   </div>
 );
+
+const MonthSelector = ({ value, months, onChange }) => (
+  <label className="mt-4 inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-600">
+    <span>Месяц</span>
+    <select
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      className="appearance-none bg-transparent pr-5 font-bold text-slate-800 outline-none"
+    >
+      {months.map((month) => (
+        <option key={month.name} value={month.name}>
+          {month.name}
+        </option>
+      ))}
+    </select>
+    <ChevronDown size={14} className="pointer-events-none -ml-5 text-slate-400" />
+  </label>
+);
+
+const getAverage = (items, key) => {
+  if (!items.length) {
+    return 0;
+  }
+
+  return items.reduce((sum, item) => sum + (item[key] || 0), 0) / items.length;
+};
+
+const getYtdMargin = (items, key) => {
+  const revenue = items.reduce((sum, item) => sum + (item.revenue || 0), 0);
+  if (!revenue) {
+    return 0;
+  }
+
+  const value = items.reduce((sum, item) => sum + (item[key] || 0), 0);
+  return (value / revenue) * 100;
+};
 
 const App = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const [processedData, setProcessedData] = useState(FALLBACK_DATA);
   const [selectedMonth, setSelectedMonth] = useState(FALLBACK_DATA[FALLBACK_DATA.length - 1]);
+  const [cardMonths, setCardMonths] = useState({
+    revenue: FALLBACK_DATA[FALLBACK_DATA.length - 1].name,
+    profit: FALLBACK_DATA[FALLBACK_DATA.length - 1].name,
+    expenses: FALLBACK_DATA[FALLBACK_DATA.length - 1].name,
+  });
   const [loading, setLoading] = useState(Boolean(SHEET_ID));
   const [error, setError] = useState("");
   const [sourceMode, setSourceMode] = useState(SHEET_ID ? "google" : "fallback");
@@ -72,6 +114,11 @@ const App = () => {
         }
         setProcessedData(data);
         setSelectedMonth(data[data.length - 1]);
+        setCardMonths({
+          revenue: data[data.length - 1].name,
+          profit: data[data.length - 1].name,
+          expenses: data[data.length - 1].name,
+        });
         setSourceMode("google");
       } catch (loadError) {
         setError(loadError.message || "Не удалось загрузить данные из Google Sheets.");
@@ -84,14 +131,17 @@ const App = () => {
     run();
   }, []);
 
-  const firstMonth = processedData[0];
   const latestMonth = processedData[processedData.length - 1];
-  const revenueGrowth = firstMonth?.revenue
-    ? ((latestMonth.revenue / firstMonth.revenue - 1) * 100).toFixed(0)
-    : "0";
-  const netGrowth = firstMonth?.netProfit
-    ? ((latestMonth.netProfit / firstMonth.netProfit - 1) * 100).toFixed(0)
-    : "0";
+  const revenueCardMonth = processedData.find((month) => month.name === cardMonths.revenue) || latestMonth;
+  const profitCardMonth = processedData.find((month) => month.name === cardMonths.profit) || latestMonth;
+  const expensesCardMonth = processedData.find((month) => month.name === cardMonths.expenses) || latestMonth;
+  const averageMonthlyProfit = getAverage(processedData, "netProfit");
+  const averageMonthlyTvIncome = getAverage(processedData, "tvIncome");
+  const ytdEbitdaMargin = getYtdMargin(processedData, "ebitda");
+  const ytdNetMargin = getYtdMargin(processedData, "netProfit");
+  const updateCardMonth = (card, monthName) => {
+    setCardMonths((current) => ({ ...current, [card]: monthName }));
+  };
 
   const waterfallData = useMemo(() => {
     const d = selectedMonth;
@@ -193,39 +243,57 @@ const App = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
           <Card
-            title={`Выручка (${latestMonth.name})`}
-            value={formatMillion(latestMonth.revenue)}
-            subValue={`${revenueGrowth > 0 ? "+" : ""}${revenueGrowth}% к ${firstMonth.name}`}
+            title={`Выручка (${revenueCardMonth.name})`}
+            value={formatMillion(revenueCardMonth.revenue)}
+            subValue="За выбранный месяц"
             icon={DollarSign}
             colorClass="bg-blue-500"
-          />
+          >
+            <MonthSelector
+              value={revenueCardMonth.name}
+              months={processedData}
+              onChange={(monthName) => updateCardMonth("revenue", monthName)}
+            />
+          </Card>
           <Card
-            title={`ФОТ (${latestMonth.name})`}
-            value={formatCurrency(latestMonth.opexDetails.salaries)}
-            subValue={`${latestMonth.opex ? ((latestMonth.opexDetails.salaries / latestMonth.opex) * 100).toFixed(0) : 0}% от OpEx`}
-            icon={Users}
-            colorClass="bg-indigo-500"
-          />
-          <Card
-            title={`Чистая прибыль (${latestMonth.name})`}
-            value={formatMillion(latestMonth.netProfit)}
-            subValue={`Маржа ${latestMonth.netMargin}%`}
+            title={`Чистая прибыль (${profitCardMonth.name})`}
+            value={formatMillion(profitCardMonth.netProfit)}
+            subValue={`Маржа ${profitCardMonth.netMargin}%`}
             icon={Zap}
             colorClass="bg-emerald-500"
-          />
+          >
+            <MonthSelector
+              value={profitCardMonth.name}
+              months={processedData}
+              onChange={(monthName) => updateCardMonth("profit", monthName)}
+            />
+          </Card>
           <Card
-            title={`Доходы ТВ (${latestMonth.name})`}
-            value={formatCurrency(latestMonth.tvIncome)}
-            subValue={`Дивиденды: ${formatCurrency(latestMonth.tvDividends)}`}
-            icon={CircleDollarSign}
-            colorClass="bg-fuchsia-500"
-          />
+            title={`Расходы (${expensesCardMonth.name})`}
+            value={formatCurrency(expensesCardMonth.opex)}
+            subValue={`Фин. расходы: ${formatCurrency(expensesCardMonth.taxes)}`}
+            icon={ArrowDownRight}
+            colorClass="bg-indigo-500"
+          >
+            <MonthSelector
+              value={expensesCardMonth.name}
+              months={processedData}
+              onChange={(monthName) => updateCardMonth("expenses", monthName)}
+            />
+          </Card>
           <Card
-            title="EBITDA"
-            value={`${latestMonth.ebitdaMargin}%`}
-            subValue={`${netGrowth > 0 ? "+" : ""}${netGrowth}% рост чистой прибыли`}
+            title="Средняя маржа"
+            value={`${ytdEbitdaMargin.toFixed(1)}% EBITDA`}
+            subValue={`${ytdNetMargin.toFixed(1)}% чистая маржа`}
             icon={Percent}
             colorClass="bg-amber-500"
+          />
+          <Card
+            title="Среднее в месяц"
+            value={formatMillion(averageMonthlyProfit)}
+            subValue={`Доходы ТВ: ${formatCurrency(averageMonthlyTvIncome)}`}
+            icon={CircleDollarSign}
+            colorClass="bg-fuchsia-500"
           />
         </div>
 
