@@ -246,7 +246,7 @@ const App = () => {
           <Card
             title={`Выручка (${revenueCardMonth.name})`}
             value={formatMillion(revenueCardMonth.revenue)}
-            subValue="За выбранный месяц"
+            subValue={`Себестоимость товаров: ${formatCurrency(revenueCardMonth.cogs)}`}
             icon={DollarSign}
             colorClass="bg-blue-500"
           >
