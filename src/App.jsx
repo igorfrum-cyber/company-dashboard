@@ -33,6 +33,13 @@ import { formatCurrency, formatMillion, formatRevenueShare } from "./utils/forma
 
 const SHEET_ID = import.meta.env.VITE_GOOGLE_SHEET_ID || "";
 
+const BUSINESS_UNITS = [
+  { id: "company", label: "ООО Кристайл", enabled: false },
+  { id: "tyumen", label: "Тюмень", enabled: true },
+  { id: "surgut", label: "Сургут", enabled: false },
+  { id: "novy-urengoy", label: "Новый Уренгой", enabled: false },
+];
+
 const Card = ({ title, value, subValue, icon: Icon, colorClass, children }) => (
   <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex min-h-[180px] flex-col">
     <div className="space-y-5">
@@ -101,6 +108,7 @@ const getYtdMargin = (items, key) => {
 
 const App = () => {
   const [activeTab, setActiveTab] = useState("overview");
+  const [activeBusinessUnit] = useState("tyumen");
   const [processedData, setProcessedData] = useState(FALLBACK_DATA);
   const [selectedMonth, setSelectedMonth] = useState(FALLBACK_DATA[FALLBACK_DATA.length - 1]);
   const [cardMonths, setCardMonths] = useState({
@@ -237,7 +245,30 @@ const App = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans text-slate-900">
-      <div className="max-w-6xl mx-auto">
+      <div className="mx-auto flex max-w-7xl flex-col gap-6 lg:flex-row lg:items-start">
+        <aside className="w-full lg:sticky lg:top-8 lg:w-48 lg:shrink-0">
+          <div className="flex gap-2 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm lg:flex-col lg:overflow-visible">
+            {BUSINESS_UNITS.map((unit) => {
+              const isActive = activeBusinessUnit === unit.id;
+
+              return (
+                <button
+                  key={unit.id}
+                  type="button"
+                  disabled={!unit.enabled}
+                  className={`whitespace-nowrap rounded-xl px-4 py-3 text-left text-sm font-bold transition-colors ${
+                    isActive
+                      ? "bg-blue-600 text-white shadow-sm"
+                      : "cursor-not-allowed bg-slate-100 text-slate-400"
+                  }`}
+                >
+                  {unit.label}
+                </button>
+              );
+            })}
+          </div>
+        </aside>
+        <main className="min-w-0 flex-1">
         <header className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-black text-slate-900 flex items-center gap-2">
@@ -687,6 +718,7 @@ const App = () => {
             </tbody>
           </table>
         </div>
+        </main>
       </div>
     </div>
   );
