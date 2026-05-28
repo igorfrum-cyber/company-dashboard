@@ -55,6 +55,7 @@ const SALES_TABS = [
   { id: "brands", label: "Бренды", icon: Tags },
   { id: "managers", label: "Менеджеры", icon: Users },
   { id: "seminars", label: "Семинары", icon: FileText },
+  { id: "plan", label: "План", icon: FileText },
 ];
 
 const Card = ({ title, value, subValue, icon: Icon, colorClass, children }) => (
@@ -794,6 +795,7 @@ const App = () => {
               {activeSalesTab === "brands" && <PlaceholderChart title="Динамика продаж по брендам" />}
               {activeSalesTab === "managers" && <PlaceholderChart title="Динамика продаж по менеджерам" />}
               {activeSalesTab === "seminars" && <PlaceholderChart title="Динамика продаж по семинарам" />}
+              {activeSalesTab === "plan" && <PlaceholderChart title="План продаж" />}
             </div>
           </>
         )}
