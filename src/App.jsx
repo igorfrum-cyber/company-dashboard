@@ -69,6 +69,18 @@ const MonthSelector = ({ value, months, onChange }) => (
   </label>
 );
 
+const getOpexItems = (month) =>
+  month.opexItems?.length > 0
+    ? month.opexItems
+    : [
+        { name: "Зарплаты", value: month.opexDetails?.salaries || 0 },
+        { name: "Доставка", value: month.opexDetails?.delivery || 0 },
+        { name: "Прочие OpEx", value: month.opexDetails?.other || 0 },
+      ];
+
+const getTaxItems = (month) =>
+  month.taxItems?.length > 0 ? month.taxItems : [{ name: "Налоги и фин. расходы", value: month.taxes || 0 }];
+
 const getAverage = (items, key) => {
   if (!items.length) {
     return 0;
@@ -96,6 +108,7 @@ const App = () => {
     profit: FALLBACK_DATA[FALLBACK_DATA.length - 1].name,
     expenses: FALLBACK_DATA[FALLBACK_DATA.length - 1].name,
   });
+  const [expenseTrendSelection, setExpenseTrendSelection] = useState(null);
   const [loading, setLoading] = useState(Boolean(SHEET_ID));
   const [error, setError] = useState("");
   const [sourceMode, setSourceMode] = useState(SHEET_ID ? "google" : "fallback");
@@ -164,14 +177,7 @@ const App = () => {
   }, [selectedMonth]);
 
   const opexBreakdown = useMemo(() => {
-    const baseItems =
-      selectedMonth.opexItems?.length > 0
-        ? selectedMonth.opexItems
-        : [
-            { name: "Зарплаты", value: selectedMonth.opexDetails.salaries },
-            { name: "Доставка", value: selectedMonth.opexDetails.delivery },
-            { name: "Прочие OpEx", value: selectedMonth.opexDetails.other },
-          ];
+    const baseItems = getOpexItems(selectedMonth);
 
     const sortedItems = [...baseItems]
       .filter((item) => (item.value || 0) > 0)
@@ -184,8 +190,7 @@ const App = () => {
   }, [selectedMonth]);
 
   const taxBreakdown = useMemo(() => {
-    const baseItems =
-      selectedMonth.taxItems?.length > 0 ? selectedMonth.taxItems : [{ name: "Налоги и фин. расходы", value: selectedMonth.taxes }];
+    const baseItems = getTaxItems(selectedMonth);
 
     const sortedItems = [...baseItems]
       .filter((item) => (item.value || 0) > 0)
@@ -196,6 +201,39 @@ const App = () => {
       color: TAX_COLORS[index % TAX_COLORS.length],
     }));
   }, [selectedMonth]);
+
+  const expenseTrendData = useMemo(() => {
+    if (!expenseTrendSelection) {
+      return processedData.map((month) => {
+        const opex = month.opex || 0;
+        const taxes = month.taxes || 0;
+        const total = opex + taxes;
+
+        return {
+          name: month.name,
+          opex,
+          taxes,
+          revenueShare: month.revenue ? Number(((total / month.revenue) * 100).toFixed(1)) : 0,
+        };
+      });
+    }
+
+    return processedData.map((month) => {
+      const items = expenseTrendSelection.type === "opex" ? getOpexItems(month) : getTaxItems(month);
+      const item = items.find((candidate) => candidate.name === expenseTrendSelection.name);
+      const value = item?.value || 0;
+
+      return {
+        name: month.name,
+        value,
+        revenueShare: month.revenue ? Number(((value / month.revenue) * 100).toFixed(1)) : 0,
+      };
+    });
+  }, [expenseTrendSelection, processedData]);
+
+  const expenseTrendTitle = expenseTrendSelection
+    ? `Динамика: ${expenseTrendSelection.name}`
+    : "Динамика операционных и финансовых расходов";
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans text-slate-900">
@@ -370,7 +408,16 @@ const App = () => {
                     </div>
                     <div className="space-y-3 max-h-[320px] overflow-auto pr-2">
                       {opexBreakdown.map((item) => (
-                        <div key={item.name} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
+                        <button
+                          key={item.name}
+                          type="button"
+                          onClick={() => setExpenseTrendSelection({ type: "opex", name: item.name })}
+                          className={`flex w-full items-center justify-between p-3 rounded-xl text-left transition-colors ${
+                            expenseTrendSelection?.type === "opex" && expenseTrendSelection?.name === item.name
+                              ? "bg-indigo-50 ring-2 ring-indigo-200"
+                              : "bg-slate-50 hover:bg-slate-100"
+                          }`}
+                        >
                           <div className="flex items-center gap-3">
                             <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }}></div>
                             <span className="font-medium">{item.name}</span>
@@ -381,7 +428,7 @@ const App = () => {
                               {selectedMonth.opex ? ((item.value / selectedMonth.opex) * 100).toFixed(1) : 0}% от OpEx
                             </div>
                           </div>
-                        </div>
+                        </button>
                       ))}
                     </div>
                   </div>
@@ -408,7 +455,16 @@ const App = () => {
                     </div>
                     <div className="space-y-3 max-h-[320px] overflow-auto pr-2">
                       {taxBreakdown.map((item) => (
-                        <div key={item.name} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
+                        <button
+                          key={item.name}
+                          type="button"
+                          onClick={() => setExpenseTrendSelection({ type: "tax", name: item.name })}
+                          className={`flex w-full items-center justify-between p-3 rounded-xl text-left transition-colors ${
+                            expenseTrendSelection?.type === "tax" && expenseTrendSelection?.name === item.name
+                              ? "bg-amber-50 ring-2 ring-amber-200"
+                              : "bg-slate-50 hover:bg-slate-100"
+                          }`}
+                        >
                           <div className="flex items-center gap-3">
                             <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }}></div>
                             <span className="font-medium">{item.name}</span>
@@ -419,7 +475,7 @@ const App = () => {
                               {selectedMonth.taxes ? ((item.value / selectedMonth.taxes) * 100).toFixed(1) : 0}% от налогов
                             </div>
                           </div>
-                        </div>
+                        </button>
                       ))}
                     </div>
                   </div>
@@ -427,6 +483,75 @@ const App = () => {
                     <span>ИТОГО налоги/фин. расходы</span>
                     <span>{formatCurrency(selectedMonth.taxes)}</span>
                   </div>
+                </div>
+              </div>
+              <div className="border-t border-slate-100 pt-8">
+                <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-800">{expenseTrendTitle}</h3>
+                    <p className="text-sm text-slate-500">
+                      {expenseTrendSelection
+                        ? "Столбцы показывают выбранную статью, линия показывает долю от выручки."
+                        : "Столбцы показывают OpEx и финрасходы, линия показывает их суммарную долю от выручки."}
+                    </p>
+                  </div>
+                  {expenseTrendSelection && (
+                    <button
+                      type="button"
+                      onClick={() => setExpenseTrendSelection(null)}
+                      className="self-start rounded-lg bg-slate-100 px-4 py-2 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-200 md:self-auto"
+                    >
+                      Показать все расходы
+                    </button>
+                  )}
+                </div>
+                <div className="h-[360px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={expenseTrendData}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#64748b" }} dy={10} />
+                      <YAxis
+                        yAxisId="left"
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: "#64748b" }}
+                        tickFormatter={(v) => `${(v / 1e6).toFixed(1)}M`}
+                      />
+                      <YAxis
+                        yAxisId="right"
+                        orientation="right"
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: "#64748b" }}
+                        tickFormatter={(v) => `${v}%`}
+                      />
+                      <Tooltip formatter={(value, name) => [name.includes("%") ? `${value}%` : formatCurrency(value), name]} />
+                      {expenseTrendSelection ? (
+                        <Bar
+                          yAxisId="left"
+                          dataKey="value"
+                          name={expenseTrendSelection.name}
+                          fill={expenseTrendSelection.type === "opex" ? "#6366f1" : "#f59e0b"}
+                          radius={[6, 6, 0, 0]}
+                          barSize={70}
+                        />
+                      ) : (
+                        <>
+                          <Bar yAxisId="left" dataKey="opex" name="Операционные расходы" fill="#6366f1" radius={[6, 6, 0, 0]} barSize={70} />
+                          <Bar yAxisId="left" dataKey="taxes" name="Финансовые расходы" fill="#f59e0b" radius={[6, 6, 0, 0]} barSize={70} />
+                        </>
+                      )}
+                      <Line
+                        yAxisId="right"
+                        type="monotone"
+                        dataKey="revenueShare"
+                        name="% от выручки"
+                        stroke="#0f766e"
+                        strokeWidth={3}
+                        dot={{ r: 6, fill: "#0f766e" }}
+                      />
+                    </ComposedChart>
+                  </ResponsiveContainer>
                 </div>
               </div>
             </div>
