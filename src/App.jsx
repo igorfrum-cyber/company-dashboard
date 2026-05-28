@@ -26,84 +26,12 @@ import {
   Users,
   CircleDollarSign,
 } from "lucide-react";
-import { loadDashboardDataFromGoogleSheets } from "./googleSheets";
-
-const FALLBACK_DATA = [
-  {
-    name: "Январь",
-    revenue: 16806686.01,
-    grossProfit: 4728318.56,
-    ebitda: 3017634.15,
-    netProfit: 1464297.11,
-    cogs: 12078367.45,
-    opex: 1710684.41,
-    taxes: 1553337.04,
-    ebitdaMargin: 18,
-    netMargin: 8.7,
-    tvIncome: 635422,
-    tvDividends: 500000,
-    tvOtherIncome: 135422,
-    opexDetails: {
-      salaries: 857264,
-      delivery: 90287.89,
-      other: 763132.52,
-    },
-  },
-  {
-    name: "Февраль",
-    revenue: 22160834.89,
-    grossProfit: 6824588.27,
-    ebitda: 4542495.9,
-    netProfit: 2537712.86,
-    cogs: 15336246.62,
-    opex: 2282092.37,
-    taxes: 2004783.04,
-    ebitdaMargin: 20.5,
-    netMargin: 11.5,
-    tvIncome: 784023,
-    tvDividends: 500000,
-    tvOtherIncome: 284023,
-    opexDetails: {
-      salaries: 947878,
-      delivery: 38168.03,
-      other: 1296046.34,
-    },
-  },
-  {
-    name: "Март",
-    revenue: 25288957.5,
-    grossProfit: 8030483.7,
-    ebitda: 5553241.95,
-    netProfit: 3368731.77,
-    cogs: 17258473.8,
-    opex: 2477241.75,
-    taxes: 2184510.18,
-    ebitdaMargin: 21.9,
-    netMargin: 13.3,
-    tvIncome: 725022,
-    tvDividends: 500000,
-    tvOtherIncome: 225022,
-    opexDetails: {
-      salaries: 1157474,
-      delivery: 67368.8,
-      other: 1252398.95,
-    },
-  },
-];
+import { FALLBACK_DATA } from "./data/fallbackData";
+import { loadDashboardDataFromGoogleSheets } from "./services/googleSheets";
+import { OPEX_COLORS, TAX_COLORS } from "./utils/chartColors";
+import { formatCurrency, formatMillion } from "./utils/formatters";
 
 const SHEET_ID = import.meta.env.VITE_GOOGLE_SHEET_ID || "";
-
-const formatCurrency = (val) =>
-  new Intl.NumberFormat("ru-RU", {
-    style: "currency",
-    currency: "RUB",
-    maximumFractionDigits: 0,
-  }).format(val || 0);
-
-const formatMillion = (val) => `${((val || 0) / 1000000).toFixed(2)} млн`;
-
-const OPEX_COLORS = ["#4f46e5", "#06b6d4", "#94a3b8", "#0ea5e9", "#f59e0b", "#22c55e", "#64748b", "#8b5cf6", "#10b981"];
-const TAX_COLORS = ["#f97316", "#ef4444", "#f59e0b", "#dc2626", "#fb7185", "#b91c1c", "#7f1d1d"];
 
 const Card = ({ title, value, subValue, icon: Icon, colorClass }) => (
   <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-between">
