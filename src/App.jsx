@@ -34,8 +34,8 @@ import { formatCurrency, formatMillion, formatRevenueShare } from "./utils/forma
 const SHEET_ID = import.meta.env.VITE_GOOGLE_SHEET_ID || "";
 
 const Card = ({ title, value, subValue, icon: Icon, colorClass, children }) => (
-  <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-between min-h-[180px]">
-    <div className="flex justify-between items-start mb-4">
+  <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex min-h-[180px] flex-col gap-5">
+    <div className="flex justify-between items-start">
       <div className={`p-3 rounded-xl ${colorClass}`}>
         <Icon size={24} className="text-white" />
       </div>
