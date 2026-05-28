@@ -25,6 +25,10 @@ import {
   Info,
   CircleDollarSign,
   ChevronDown,
+  ShoppingBag,
+  Trophy,
+  Tags,
+  Users,
 } from "lucide-react";
 import { FALLBACK_DATA } from "./data/fallbackData";
 import { loadDashboardDataFromGoogleSheets } from "./services/googleSheets";
@@ -38,6 +42,19 @@ const BUSINESS_UNITS = [
   { id: "tyumen", label: "Тюмень", enabled: true },
   { id: "surgut", label: "Сургут", enabled: false },
   { id: "novy-urengoy", label: "Новый Уренгой", enabled: false },
+];
+
+const FINANCE_TABS = [
+  { id: "overview", label: "Обзор", icon: TrendingUp },
+  { id: "structure", label: "Расходы", icon: PieChartIcon },
+  { id: "waterfall", label: "Детализация", icon: ArrowDownRight },
+  { id: "analysis", label: "Анализ", icon: FileText },
+];
+
+const SALES_TABS = [
+  { id: "brands", label: "Бренды", icon: Tags },
+  { id: "managers", label: "Менеджеры", icon: Users },
+  { id: "seminars", label: "Семинары", icon: FileText },
 ];
 
 const Card = ({ title, value, subValue, icon: Icon, colorClass, children }) => (
@@ -108,8 +125,30 @@ const getYtdMargin = (items, key) => {
   return (value / revenue) * 100;
 };
 
+const PlaceholderChart = ({ title }) => (
+  <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8">
+    <div className="mb-6 flex items-center justify-between gap-4">
+      <div>
+        <h2 className="text-xl font-bold text-slate-800">{title}</h2>
+        <p className="mt-1 text-sm text-slate-500">Данные из Google Sheets подключим на следующем шаге.</p>
+      </div>
+      <ShoppingBag className="text-slate-300" size={32} />
+    </div>
+    <div className="flex h-[320px] items-end gap-4 rounded-xl bg-white p-6">
+      {[34, 58, 42, 76, 63, 88].map((height, index) => (
+        <div key={index} className="flex flex-1 flex-col justify-end gap-3">
+          <div className="rounded-t-lg bg-slate-200" style={{ height: `${height}%` }}></div>
+          <div className="h-2 rounded-full bg-slate-100"></div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
 const App = () => {
+  const [portalMode, setPortalMode] = useState("finances");
   const [activeTab, setActiveTab] = useState("overview");
+  const [activeSalesTab, setActiveSalesTab] = useState("brands");
   const [activeBusinessUnit] = useState("tyumen");
   const [processedData, setProcessedData] = useState(FALLBACK_DATA);
   const [selectedMonth, setSelectedMonth] = useState(FALLBACK_DATA[FALLBACK_DATA.length - 1]);
@@ -244,6 +283,7 @@ const App = () => {
   const expenseTrendTitle = expenseTrendSelection
     ? `Динамика: ${expenseTrendSelection.name}`
     : "Динамика операционных и финансовых расходов";
+  const activeSalesTabLabel = SALES_TABS.find((tab) => tab.id === activeSalesTab)?.label || "Бренды";
 
   return (
     <div className="min-h-screen bg-slate-50 px-3 py-4 font-sans text-slate-900 md:px-5 md:py-6">
@@ -275,50 +315,72 @@ const App = () => {
           <div>
             <h1 className="text-3xl font-black text-slate-900 flex items-center gap-2">
               <LayoutDashboard className="text-blue-600" />
-              Финансовый дашборд компании
+              {portalMode === "finances" ? "Финансовый дашборд компании" : "Продажи и аналитика"}
             </h1>
-            <p className="text-slate-500 mt-1">Источник: {sourceMode === "google" ? "Google Sheets" : "Демо-данные"}</p>
+            <p className="text-slate-500 mt-1">
+              {portalMode === "finances"
+                ? `Источник: ${sourceMode === "google" ? "Google Sheets" : "Демо-данные"}`
+                : "Источник продаж: Google Sheets будет подключен отдельно"}
+            </p>
           </div>
-          <div className="flex bg-white p-1 rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
-            {[
-              { id: "overview", label: "Обзор", icon: TrendingUp },
-              { id: "structure", label: "Расходы", icon: PieChartIcon },
-              { id: "waterfall", label: "Детализация", icon: ArrowDownRight },
-              { id: "analysis", label: "Анализ", icon: FileText },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all whitespace-nowrap ${
-                  activeTab === tab.id ? "bg-blue-600 text-white shadow-md" : "text-slate-600 hover:bg-slate-50"
-                }`}
-              >
-                <tab.icon size={16} />
-                {tab.label}
-              </button>
-            ))}
+          <div className="flex items-center gap-3 overflow-x-auto">
+            <button
+              type="button"
+              onClick={() => setPortalMode(portalMode === "finances" ? "sales" : "finances")}
+              className="flex items-center gap-2 whitespace-nowrap rounded-xl bg-white px-4 py-3 text-sm font-bold text-slate-700 shadow-sm ring-1 ring-slate-200 transition-colors hover:bg-slate-50"
+            >
+              {portalMode === "finances" ? <ShoppingBag size={16} /> : <LayoutDashboard size={16} />}
+              {portalMode === "finances" ? "Продажи" : "Финансы"}
+            </button>
+            <div className="flex bg-white p-1 rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
+              {(portalMode === "finances" ? FINANCE_TABS : SALES_TABS).map((tab) => {
+                const isActive = portalMode === "finances" ? activeTab === tab.id : activeSalesTab === tab.id;
+                const handleClick = () => {
+                  if (portalMode === "finances") {
+                    setActiveTab(tab.id);
+                  } else {
+                    setActiveSalesTab(tab.id);
+                  }
+                };
+
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={handleClick}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all whitespace-nowrap ${
+                      isActive ? "bg-blue-600 text-white shadow-md" : "text-slate-600 hover:bg-slate-50"
+                    }`}
+                  >
+                    <tab.icon size={16} />
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </header>
 
-        {loading && (
+        {portalMode === "finances" && loading && (
           <div className="mb-6 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-blue-700 text-sm">
             Загружаю данные из Google Sheets...
           </div>
         )}
 
-        {error && (
+        {portalMode === "finances" && error && (
           <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-800 text-sm">
             {error} Сейчас показываю последние рабочие (демо) данные.
           </div>
         )}
 
-        {!SHEET_ID && (
+        {portalMode === "finances" && !SHEET_ID && (
           <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-900 text-sm">
             Чтобы включить автообновление: добавьте в Vercel переменную{" "}
             <code className="font-mono">VITE_GOOGLE_SHEET_ID</code>.
           </div>
         )}
 
+        {portalMode === "finances" ? (
+          <>
         <div className="grid grid-cols-1 md:grid-cols-5 gap-5 mb-8">
           <Card
             title={`Выручка (${revenueCardMonth.name})`}
@@ -720,6 +782,21 @@ const App = () => {
             </tbody>
           </table>
         </div>
+          </>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 gap-5 mb-8 md:grid-cols-3">
+              <Card title="Лучший продавец" value="Данные скоро появятся" subValue="Подключим продажи из Google Sheets" icon={Trophy} colorClass="bg-blue-500" />
+              <Card title="Лучший бренд" value="Данные скоро появятся" subValue="Будет рейтинг брендов" icon={Tags} colorClass="bg-emerald-500" />
+              <Card title="Лучший семинар" value="Данные скоро появятся" subValue="Будет аналитика семинаров" icon={FileText} colorClass="bg-amber-500" />
+            </div>
+            <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 min-h-[500px]">
+              {activeSalesTab === "brands" && <PlaceholderChart title="Динамика продаж по брендам" />}
+              {activeSalesTab === "managers" && <PlaceholderChart title="Динамика продаж по менеджерам" />}
+              {activeSalesTab === "seminars" && <PlaceholderChart title="Динамика продаж по семинарам" />}
+            </div>
+          </>
+        )}
         </main>
       </div>
     </div>
