@@ -244,3 +244,97 @@ export const loadDashboardDataFromGoogleSheets = async (sheetId) => {
     .filter((result) => result.status === "fulfilled" && result.value)
     .map((result) => result.value);
 };
+
+const getMonthName = (value) => {
+  const normalized = normalizeText(value);
+  if (!normalized) {
+    return "";
+  }
+
+  const month = MONTH_SPECS.find((spec) =>
+    spec.candidates.some((candidate) => normalized.includes(normalizeText(candidate))),
+  );
+
+  return month?.name || "";
+};
+
+const findHeaderIndex = (rows) =>
+  rows.findIndex((row) => row.some((cell) => typeof cell === "string" && normalizeText(cell).includes("бренд")));
+
+const findColumn = (headers, matcher) => headers.findIndex((header) => matcher(normalizeText(header)));
+
+const createBrandBucket = (name) => ({
+  name,
+  purchasePlan: 0,
+  salesPlan: 0,
+  monthlySales: {},
+});
+
+export const loadBrandSalesDataFromGoogleSheets = async (sheetId, sheetName = "Бренды") => {
+  const rows = await fetchSheetRows(sheetId, sheetName);
+  const headerIndex = findHeaderIndex(rows);
+  if (headerIndex < 0) {
+    throw new Error("В таблице брендов не найдена колонка «Бренд».");
+  }
+
+  const headers = rows[headerIndex].map(cleanLabel);
+  const brandCol = findColumn(headers, (label) => label.includes("бренд") || label.includes("название"));
+  const monthCol = findColumn(headers, (label) => label.includes("месяц"));
+  const purchasePlanCol = findColumn(
+    headers,
+    (label) => label.includes("план") && (label.includes("выкуп") || label.includes("поставщ")),
+  );
+  const salesPlanCol = findColumn(headers, (label) => label.includes("план") && label.includes("продаж"));
+  const salesFactCol = findColumn(
+    headers,
+    (label) =>
+      label.includes("факт") ||
+      label.includes("выруч") ||
+      (label.includes("продаж") && !label.includes("план")),
+  );
+
+  if (brandCol < 0) {
+    throw new Error("В таблице брендов не найдена колонка «Бренд».");
+  }
+
+  const monthColumns = headers
+    .map((header, index) => ({ index, month: getMonthName(header) }))
+    .filter((column) => column.month && column.index !== monthCol);
+
+  const buckets = new Map();
+  const getBucket = (name) => {
+    if (!buckets.has(name)) {
+      buckets.set(name, createBrandBucket(name));
+    }
+    return buckets.get(name);
+  };
+
+  for (const row of rows.slice(headerIndex + 1)) {
+    const brandName = cleanLabel(row[brandCol]);
+    if (!brandName) {
+      continue;
+    }
+
+    const bucket = getBucket(brandName);
+    if (purchasePlanCol >= 0) {
+      bucket.purchasePlan = Math.max(bucket.purchasePlan, toNumber(row[purchasePlanCol]));
+    }
+    if (salesPlanCol >= 0) {
+      bucket.salesPlan = Math.max(bucket.salesPlan, toNumber(row[salesPlanCol]));
+    }
+
+    if (monthCol >= 0 && salesFactCol >= 0) {
+      const monthName = getMonthName(row[monthCol]);
+      if (monthName) {
+        bucket.monthlySales[monthName] = (bucket.monthlySales[monthName] || 0) + toNumber(row[salesFactCol]);
+      }
+      continue;
+    }
+
+    for (const column of monthColumns) {
+      bucket.monthlySales[column.month] = (bucket.monthlySales[column.month] || 0) + toNumber(row[column.index]);
+    }
+  }
+
+  return Array.from(buckets.values()).filter((brand) => Object.values(brand.monthlySales).some((value) => value > 0));
+};

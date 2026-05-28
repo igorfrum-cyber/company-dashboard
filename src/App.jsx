@@ -31,11 +31,13 @@ import {
   Users,
 } from "lucide-react";
 import { FALLBACK_DATA } from "./data/fallbackData";
-import { loadDashboardDataFromGoogleSheets } from "./services/googleSheets";
+import { loadBrandSalesDataFromGoogleSheets, loadDashboardDataFromGoogleSheets } from "./services/googleSheets";
 import { OPEX_COLORS, TAX_COLORS } from "./utils/chartColors";
 import { formatCurrency, formatMillion, formatRevenueShare } from "./utils/formatters";
 
 const SHEET_ID = import.meta.env.VITE_GOOGLE_SHEET_ID || "";
+const BRANDS_SHEET_ID = import.meta.env.VITE_BRANDS_GOOGLE_SHEET_ID || "";
+const BRANDS_SHEET_NAME = import.meta.env.VITE_BRANDS_SHEET_NAME || "Бренды";
 
 const BUSINESS_UNITS = [
   { id: "company", label: "ООО Кристайл", enabled: false },
@@ -56,6 +58,47 @@ const SALES_TABS = [
   { id: "managers", label: "Менеджеры", icon: Users },
   { id: "seminars", label: "Семинары", icon: FileText },
   { id: "plan", label: "План", icon: FileText },
+];
+
+const BRAND_COLORS = ["#4f46e5", "#06b6d4", "#94a3b8", "#0ea5e9", "#f59e0b", "#22c55e", "#64748b", "#8b5cf6"];
+
+const FALLBACK_BRAND_SALES = [
+  {
+    name: "Alfaparf Milano",
+    purchasePlan: 3200000,
+    salesPlan: 4700000,
+    monthlySales: { Январь: 2380000, Февраль: 3120000, Март: 3860000 },
+  },
+  {
+    name: "Davines",
+    purchasePlan: 2600000,
+    salesPlan: 3900000,
+    monthlySales: { Январь: 1820000, Февраль: 2410000, Март: 3180000 },
+  },
+  {
+    name: "L'Oreal Professionnel",
+    purchasePlan: 2100000,
+    salesPlan: 3300000,
+    monthlySales: { Январь: 1650000, Февраль: 2050000, Март: 2710000 },
+  },
+  {
+    name: "Matrix",
+    purchasePlan: 1250000,
+    salesPlan: 2100000,
+    monthlySales: { Январь: 870000, Февраль: 1420000, Март: 1960000 },
+  },
+  {
+    name: "Estel",
+    purchasePlan: 980000,
+    salesPlan: 1600000,
+    monthlySales: { Январь: 740000, Февраль: 1080000, Март: 1350000 },
+  },
+  {
+    name: "Wella",
+    purchasePlan: 760000,
+    salesPlan: 1200000,
+    monthlySales: { Январь: 610000, Февраль: 790000, Март: 970000 },
+  },
 ];
 
 const Card = ({ title, value, subValue, icon: Icon, colorClass, children }) => (
@@ -146,12 +189,195 @@ const PlaceholderChart = ({ title }) => (
   </div>
 );
 
+const getBrandMonthSales = (brand, monthName) => brand.monthlySales?.[monthName] || 0;
+
+const getLatestBrandSales = (brand, months) => {
+  for (let i = months.length - 1; i >= 0; i -= 1) {
+    const value = getBrandMonthSales(brand, months[i].name);
+    if (value > 0) {
+      return value;
+    }
+  }
+
+  return 0;
+};
+
+const BrandSalesAnalytics = ({ brands, months, latestMonth, selectedBrandName, onSelectBrand }) => {
+  const latestRevenue = latestMonth?.revenue || 0;
+  const selectedBrand = brands.find((brand) => brand.name === selectedBrandName);
+  const rows = brands
+    .map((brand, index) => ({
+      ...brand,
+      color: BRAND_COLORS[index % BRAND_COLORS.length],
+      latestFact: getBrandMonthSales(brand, latestMonth.name) || getLatestBrandSales(brand, months),
+    }))
+    .sort((a, b) => b.latestFact - a.latestFact);
+
+  const chartData = rows.filter((brand) => brand.latestFact > 0);
+  const trendData = selectedBrand
+    ? months.map((month) => {
+        const value = getBrandMonthSales(selectedBrand, month.name);
+        return {
+          name: month.name,
+          sales: value,
+          revenueShare: month.revenue ? Number(((value / month.revenue) * 100).toFixed(1)) : 0,
+        };
+      })
+    : [];
+
+  return (
+    <div className="space-y-8">
+      <div className="grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)]">
+        <div className="rounded-2xl bg-white p-5">
+          <div className="mb-4">
+            <h2 className="text-xl font-bold text-slate-800">Продажи брендов: {latestMonth.name}</h2>
+            <p className="text-sm text-slate-500">Доля считается от общей выручки месяца.</p>
+          </div>
+          <div className="h-[420px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={chartData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={105}
+                  outerRadius={180}
+                  paddingAngle={3}
+                  dataKey="latestFact"
+                  onClick={(entry) => onSelectBrand(entry.name)}
+                >
+                  {chartData.map((entry) => (
+                    <Cell
+                      key={entry.name}
+                      fill={entry.color}
+                      stroke={selectedBrandName === entry.name ? "#0f172a" : "#ffffff"}
+                      strokeWidth={selectedBrandName === entry.name ? 3 : 2}
+                    />
+                  ))}
+                </Pie>
+                <Tooltip
+                  formatter={(value) => [formatCurrency(value), "Продажи"]}
+                  labelFormatter={(label) => label}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          {rows.map((brand) => {
+            const isActive = selectedBrandName === brand.name;
+            const share = latestRevenue ? ((brand.latestFact / latestRevenue) * 100).toFixed(1) : "0.0";
+
+            return (
+              <button
+                key={brand.name}
+                type="button"
+                onClick={() => onSelectBrand(brand.name)}
+                className={`flex w-full items-center justify-between gap-4 rounded-2xl p-4 text-left transition-colors ${
+                  isActive ? "bg-blue-50 ring-2 ring-blue-200" : "bg-slate-50 hover:bg-slate-100"
+                }`}
+              >
+                <div className="flex min-w-0 items-center gap-4">
+                  <span className="h-4 w-4 shrink-0 rounded-full" style={{ backgroundColor: brand.color }} />
+                  <span className="min-w-0 text-lg font-black text-slate-800">{brand.name}</span>
+                </div>
+                <div className="shrink-0 text-right">
+                  <div className="text-lg font-black text-slate-900">{formatCurrency(brand.latestFact)}</div>
+                  <div className="text-sm font-semibold text-slate-400">{share}% от выручки</div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {selectedBrand && (
+        <div className="rounded-2xl border border-slate-100 bg-white p-6">
+          <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h3 className="text-lg font-bold text-slate-800">Динамика продаж: {selectedBrand.name}</h3>
+              <p className="text-sm text-slate-500">Столбцы показывают продажи бренда, линия — процент от выручки.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => onSelectBrand("")}
+              className="self-start rounded-lg bg-slate-100 px-4 py-2 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-200 md:self-auto"
+            >
+              Скрыть график
+            </button>
+          </div>
+          <div className="h-[360px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={trendData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#64748b" }} dy={10} />
+                <YAxis
+                  yAxisId="left"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: "#64748b" }}
+                  tickFormatter={(value) => `${(value / 1e6).toFixed(1)}M`}
+                />
+                <YAxis
+                  yAxisId="right"
+                  orientation="right"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: "#64748b" }}
+                  tickFormatter={(value) => `${value}%`}
+                />
+                <Tooltip formatter={(value, name) => [name.includes("%") ? `${value}%` : formatCurrency(value), name]} />
+                <Bar yAxisId="left" dataKey="sales" name="Продажи бренда" fill="#4f46e5" radius={[6, 6, 0, 0]} barSize={70} />
+                <Line
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey="revenueShare"
+                  name="% от выручки"
+                  stroke="#f59e0b"
+                  strokeWidth={3}
+                  dot={{ r: 6, fill: "#f59e0b" }}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white">
+        <table className="w-full min-w-[760px] text-left text-sm">
+          <thead>
+            <tr className="bg-slate-50 text-slate-500 uppercase tracking-wider">
+              <th className="px-5 py-4 font-bold">Бренд</th>
+              <th className="px-5 py-4 font-bold text-right">План выкупа у поставщика</th>
+              <th className="px-5 py-4 font-bold text-right">План продаж</th>
+              <th className="px-5 py-4 font-bold text-right">Факт продаж за {latestMonth.name}</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {rows.map((brand) => (
+              <tr key={brand.name} className="hover:bg-slate-50/70">
+                <td className="px-5 py-4 font-bold text-slate-800">{brand.name}</td>
+                <td className="px-5 py-4 text-right text-slate-600">{formatCurrency(brand.purchasePlan)}</td>
+                <td className="px-5 py-4 text-right text-slate-600">{formatCurrency(brand.salesPlan)}</td>
+                <td className="px-5 py-4 text-right font-black text-blue-600">{formatCurrency(brand.latestFact)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
 const App = () => {
   const [portalMode, setPortalMode] = useState("finances");
   const [activeTab, setActiveTab] = useState("overview");
   const [activeSalesTab, setActiveSalesTab] = useState("brands");
   const [activeBusinessUnit] = useState("tyumen");
   const [processedData, setProcessedData] = useState(FALLBACK_DATA);
+  const [brandSalesData, setBrandSalesData] = useState(FALLBACK_BRAND_SALES);
+  const [selectedBrandName, setSelectedBrandName] = useState("");
   const [selectedMonth, setSelectedMonth] = useState(FALLBACK_DATA[FALLBACK_DATA.length - 1]);
   const [cardMonths, setCardMonths] = useState({
     revenue: FALLBACK_DATA[FALLBACK_DATA.length - 1].name,
@@ -160,8 +386,11 @@ const App = () => {
   });
   const [expenseTrendSelection, setExpenseTrendSelection] = useState(null);
   const [loading, setLoading] = useState(Boolean(SHEET_ID));
+  const [brandLoading, setBrandLoading] = useState(Boolean(BRANDS_SHEET_ID));
   const [error, setError] = useState("");
+  const [brandError, setBrandError] = useState("");
   const [sourceMode, setSourceMode] = useState(SHEET_ID ? "google" : "fallback");
+  const [brandSourceMode, setBrandSourceMode] = useState(BRANDS_SHEET_ID ? "google" : "fallback");
 
   useEffect(() => {
     const run = async () => {
@@ -190,6 +419,33 @@ const App = () => {
         setSourceMode("fallback");
       } finally {
         setLoading(false);
+      }
+    };
+
+    run();
+  }, []);
+
+  useEffect(() => {
+    const run = async () => {
+      if (!BRANDS_SHEET_ID) {
+        setBrandSourceMode("fallback");
+        return;
+      }
+
+      setBrandLoading(true);
+      setBrandError("");
+      try {
+        const data = await loadBrandSalesDataFromGoogleSheets(BRANDS_SHEET_ID, BRANDS_SHEET_NAME);
+        if (!data.length) {
+          throw new Error("В таблице брендов не найдено строк с продажами.");
+        }
+        setBrandSalesData(data);
+        setBrandSourceMode("google");
+      } catch (loadError) {
+        setBrandError(loadError.message || "Не удалось загрузить данные брендов из Google Sheets.");
+        setBrandSourceMode("fallback");
+      } finally {
+        setBrandLoading(false);
       }
     };
 
@@ -321,7 +577,7 @@ const App = () => {
             <p className="text-slate-500 mt-1">
               {portalMode === "finances"
                 ? `Источник: ${sourceMode === "google" ? "Google Sheets" : "Демо-данные"}`
-                : "Источник продаж: Google Sheets будет подключен отдельно"}
+                : `Источник продаж: ${brandSourceMode === "google" ? "Google Sheets" : "Демо-данные"}`}
             </p>
           </div>
           <div className="flex items-center gap-3 overflow-x-auto">
@@ -377,6 +633,26 @@ const App = () => {
           <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-900 text-sm">
             Чтобы включить автообновление: добавьте в Vercel переменную{" "}
             <code className="font-mono">VITE_GOOGLE_SHEET_ID</code>.
+          </div>
+        )}
+
+        {portalMode === "sales" && brandLoading && (
+          <div className="mb-6 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-blue-700 text-sm">
+            Загружаю продажи брендов из Google Sheets...
+          </div>
+        )}
+
+        {portalMode === "sales" && brandError && (
+          <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-800 text-sm">
+            {brandError} Сейчас показываю демо-структуру брендов.
+          </div>
+        )}
+
+        {portalMode === "sales" && activeSalesTab === "brands" && !BRANDS_SHEET_ID && (
+          <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-900 text-sm">
+            Чтобы подключить отдельную таблицу брендов: добавьте переменные{" "}
+            <code className="font-mono">VITE_BRANDS_GOOGLE_SHEET_ID</code> и{" "}
+            <code className="font-mono">VITE_BRANDS_SHEET_NAME</code>.
           </div>
         )}
 
@@ -792,7 +1068,15 @@ const App = () => {
               <Card title="Лучший семинар" value="Данные скоро появятся" subValue="Будет аналитика семинаров" icon={FileText} colorClass="bg-amber-500" />
             </div>
             <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 min-h-[500px]">
-              {activeSalesTab === "brands" && <PlaceholderChart title="Динамика продаж по брендам" />}
+              {activeSalesTab === "brands" && (
+                <BrandSalesAnalytics
+                  brands={brandSalesData}
+                  months={processedData}
+                  latestMonth={latestMonth}
+                  selectedBrandName={selectedBrandName}
+                  onSelectBrand={setSelectedBrandName}
+                />
+              )}
               {activeSalesTab === "managers" && <PlaceholderChart title="Динамика продаж по менеджерам" />}
               {activeSalesTab === "seminars" && <PlaceholderChart title="Динамика продаж по семинарам" />}
               {activeSalesTab === "plan" && <PlaceholderChart title="План продаж" />}
