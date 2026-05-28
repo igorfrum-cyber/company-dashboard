@@ -29,7 +29,7 @@ import {
 import { FALLBACK_DATA } from "./data/fallbackData";
 import { loadDashboardDataFromGoogleSheets } from "./services/googleSheets";
 import { OPEX_COLORS, TAX_COLORS } from "./utils/chartColors";
-import { formatCurrency, formatMillion } from "./utils/formatters";
+import { formatCurrency, formatMillion, formatRevenueShare } from "./utils/formatters";
 
 const SHEET_ID = import.meta.env.VITE_GOOGLE_SHEET_ID || "";
 
@@ -383,6 +383,7 @@ const App = () => {
 
                         const data = payload[0]?.payload;
                         const amount = Number(data?.value || 0);
+                        const revenueShare = formatRevenueShare(amount, selectedMonth.revenue);
                         return (
                           <div className="bg-white p-3 rounded-lg shadow-xl border border-slate-100">
                             <p className="font-bold text-slate-800">{data?.name}</p>
@@ -390,6 +391,7 @@ const App = () => {
                               {amount > 0 ? "+" : ""}
                               {formatCurrency(amount)}
                             </p>
+                            <p className="mt-1 text-xs font-semibold text-slate-500">{revenueShare} от выручки</p>
                           </div>
                         );
                       }}
