@@ -133,7 +133,11 @@ const App = () => {
     run();
   }, []);
 
+  const firstMonth = processedData[0];
   const latestMonth = processedData[processedData.length - 1];
+  const revenueGrowth = firstMonth?.revenue
+    ? ((latestMonth.revenue / firstMonth.revenue - 1) * 100).toFixed(0)
+    : "0";
   const revenueCardMonth = processedData.find((month) => month.name === cardMonths.revenue) || latestMonth;
   const profitCardMonth = processedData.find((month) => month.name === cardMonths.profit) || latestMonth;
   const expensesCardMonth = processedData.find((month) => month.name === cardMonths.expenses) || latestMonth;
