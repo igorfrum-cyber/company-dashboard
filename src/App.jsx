@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { FALLBACK_DATA } from "./data/fallbackData";
 import { BRAND_SALES_DATA } from "./data/brandSalesData";
+import { MANAGER_SALES_DATA } from "./data/managerSalesData";
 import { loadDashboardDataFromGoogleSheets } from "./services/googleSheets";
 import { OPEX_COLORS, TAX_COLORS } from "./utils/chartColors";
 import { formatCurrency, formatMillion, formatRevenueShare } from "./utils/formatters";
@@ -60,6 +61,7 @@ const SALES_TABS = [
 ];
 
 const BRAND_COLORS = ["#4f46e5", "#06b6d4", "#94a3b8", "#0ea5e9", "#f59e0b", "#22c55e", "#64748b", "#8b5cf6"];
+const MANAGER_COLORS = ["#2563eb", "#10b981", "#f59e0b", "#8b5cf6"];
 
 const Card = ({ title, value, subValue, icon: Icon, colorClass, children }) => (
   <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex min-h-[180px] flex-col">
@@ -591,6 +593,142 @@ const BrandSalesAnalytics = ({
   );
 };
 
+const ManagerSalesAnalytics = ({ managers, months, activeMonthName, onActiveMonthChange }) => {
+  const activeMonth = months.find((month) => month.name === activeMonthName) || months[months.length - 1];
+  const activeRevenue = activeMonth?.revenue || 0;
+
+  const rows = managers
+    .map((manager, index) => {
+      const sales = getBrandMonthSales(manager, activeMonth.name);
+      return {
+        ...manager,
+        color: MANAGER_COLORS[index % MANAGER_COLORS.length],
+        sales,
+        revenueShare: activeRevenue ? Number(((sales / activeRevenue) * 100).toFixed(1)) : 0,
+      };
+    })
+    .sort((a, b) => b.sales - a.sales);
+
+  const chartData = rows.filter((manager) => manager.sales > 0);
+  const trendData = months.map((month) => {
+    const row = { name: month.name };
+    managers.forEach((manager) => {
+      row[manager.name] = getBrandMonthSales(manager, month.name);
+    });
+    return row;
+  });
+
+  if (!managers.length) {
+    return (
+      <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+        <Users className="mx-auto mb-4 text-slate-300" size={36} />
+        <h2 className="text-xl font-bold text-slate-800">Менеджеры не загружены</h2>
+        <p className="mt-2 text-sm text-slate-500">Проверьте локальный файл с данными менеджеров.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8">
+      <div className="rounded-2xl bg-white p-4">
+        <div className="flex w-full flex-nowrap gap-3 overflow-x-auto md:overflow-visible">
+          {months.map((month) => (
+            <button
+              key={month.name}
+              type="button"
+              onClick={() => onActiveMonthChange(month.name)}
+              className={`min-w-32 shrink-0 rounded-full px-5 py-2 text-sm font-bold transition-colors md:min-w-0 md:flex-1 ${
+                activeMonth.name === month.name
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              {month.name}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)]">
+        <div className="rounded-2xl bg-white p-5">
+          <div className="mb-4">
+            <h2 className="text-xl font-bold text-slate-800">Продажи менеджеров: {activeMonth.name}</h2>
+            <p className="text-sm text-slate-500">Доля считается от общей выручки компании.</p>
+          </div>
+          <div className="h-[420px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={chartData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={105}
+                  outerRadius={180}
+                  paddingAngle={3}
+                  dataKey="sales"
+                >
+                  {chartData.map((entry) => (
+                    <Cell key={entry.name} fill={entry.color} stroke="#ffffff" strokeWidth={2} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value) => [formatCurrency(value), "Продажи"]} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          {rows.map((manager) => (
+            <div key={manager.name} className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-4 rounded-2xl bg-slate-50 p-4">
+              <div className="flex min-w-0 items-center gap-4">
+                <span className="h-4 w-4 shrink-0 rounded-full" style={{ backgroundColor: manager.color }} />
+                <span className="min-w-0 text-lg font-black text-slate-800">{manager.name}</span>
+              </div>
+              <div className="shrink-0 text-right">
+                <div className="text-xs font-black uppercase tracking-wider text-slate-400">Продажи</div>
+                <div className="text-lg font-black text-slate-900">{formatCurrency(manager.sales)}</div>
+                <div className="text-sm font-semibold text-slate-400">{manager.revenueShare}% от выручки</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-slate-100 bg-white p-6">
+        <div className="mb-6">
+          <h3 className="text-lg font-bold text-slate-800">Динамика продаж менеджеров</h3>
+          <p className="text-sm text-slate-500">Сравнение продаж по месяцам для всех менеджеров.</p>
+        </div>
+        <div className="h-[380px] w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={trendData}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#64748b" }} dy={10} />
+              <YAxis
+                axisLine={false}
+                tickLine={false}
+                tick={{ fill: "#64748b" }}
+                tickFormatter={(value) => `${(value / 1e6).toFixed(1)}M`}
+              />
+              <Tooltip formatter={(value, name) => [formatCurrency(value), name]} />
+              {managers.map((manager, index) => (
+                <Bar
+                  key={manager.name}
+                  dataKey={manager.name}
+                  name={manager.name}
+                  fill={MANAGER_COLORS[index % MANAGER_COLORS.length]}
+                  radius={[6, 6, 0, 0]}
+                  barSize={36}
+                />
+              ))}
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const App = () => {
   const [portalMode, setPortalMode] = useState("finances");
   const [activeTab, setActiveTab] = useState("overview");
@@ -598,9 +736,11 @@ const App = () => {
   const [activeBusinessUnit] = useState("tyumen");
   const [processedData, setProcessedData] = useState(FALLBACK_DATA);
   const [brandSalesData] = useState(BRAND_SALES_DATA);
+  const [managerSalesData] = useState(MANAGER_SALES_DATA);
   const [selectedBrandName, setSelectedBrandName] = useState("");
   const [expandedBrandName, setExpandedBrandName] = useState("");
   const [activeBrandMonthName, setActiveBrandMonthName] = useState("");
+  const [activeManagerMonthName, setActiveManagerMonthName] = useState("");
   const [selectedMonth, setSelectedMonth] = useState(FALLBACK_DATA[FALLBACK_DATA.length - 1]);
   const [cardMonths, setCardMonths] = useState({
     revenue: FALLBACK_DATA[FALLBACK_DATA.length - 1].name,
@@ -656,6 +796,15 @@ const App = () => {
   }, [brandSalesData, processedData]);
   const latestBrandMonth = brandMonths[brandMonths.length - 1] || latestMonth;
   const activeBrandMonth = brandMonths.find((month) => month.name === activeBrandMonthName) || latestBrandMonth;
+  const managerMonths = useMemo(() => {
+    const availableMonthNames = BRAND_MONTH_ORDER.filter((monthName) =>
+      managerSalesData.some((manager) => Object.prototype.hasOwnProperty.call(manager.monthlySales || {}, monthName)),
+    );
+
+    return availableMonthNames.map((monthName) => processedData.find((month) => month.name === monthName) || { name: monthName, revenue: 0 });
+  }, [managerSalesData, processedData]);
+  const latestManagerMonth = managerMonths[managerMonths.length - 1] || latestMonth;
+  const activeManagerMonth = managerMonths.find((month) => month.name === activeManagerMonthName) || latestManagerMonth;
   const bestBrand = useMemo(() => {
     if (!brandSalesData.length || !activeBrandMonth) {
       return null;
@@ -674,6 +823,24 @@ const App = () => {
       })
       .sort((a, b) => b.revenueShare - a.revenueShare || b.sales - a.sales)[0];
   }, [activeBrandMonth, brandSalesData]);
+  const bestManager = useMemo(() => {
+    if (!managerSalesData.length || !activeManagerMonth) {
+      return null;
+    }
+
+    return managerSalesData
+      .map((manager) => {
+        const sales = getBrandMonthSales(manager, activeManagerMonth.name);
+        const revenueShare = activeManagerMonth.revenue ? (sales / activeManagerMonth.revenue) * 100 : 0;
+
+        return {
+          ...manager,
+          sales,
+          revenueShare,
+        };
+      })
+      .sort((a, b) => b.sales - a.sales)[0];
+  }, [activeManagerMonth, managerSalesData]);
 
   useEffect(() => {
     if (!brandMonths.length) {
@@ -685,6 +852,17 @@ const App = () => {
       setActiveBrandMonthName(latestBrandMonth.name);
     }
   }, [activeBrandMonthName, brandMonths, latestBrandMonth.name]);
+
+  useEffect(() => {
+    if (!managerMonths.length) {
+      return;
+    }
+
+    const monthExists = managerMonths.some((month) => month.name === activeManagerMonthName);
+    if (!monthExists) {
+      setActiveManagerMonthName(latestManagerMonth.name);
+    }
+  }, [activeManagerMonthName, latestManagerMonth.name, managerMonths]);
 
   const revenueGrowth = firstMonth?.revenue
     ? ((latestMonth.revenue / firstMonth.revenue - 1) * 100).toFixed(0)
@@ -1277,7 +1455,17 @@ const App = () => {
         ) : (
           <>
             <div className="grid grid-cols-1 gap-5 mb-8 md:grid-cols-3">
-              <Card title="Лучший продавец" value="Данные скоро появятся" subValue="Подключим рейтинг продавцов" icon={Trophy} colorClass="bg-blue-500" />
+              <Card
+                title={`Лучший продавец (${activeManagerMonth.name})`}
+                value={bestManager?.name || "Данные скоро появятся"}
+                subValue={
+                  bestManager
+                    ? `${formatCurrency(bestManager.sales)} · ${bestManager.revenueShare.toFixed(1)}% от выручки`
+                    : "Подключим рейтинг продавцов"
+                }
+                icon={Trophy}
+                colorClass="bg-blue-500"
+              />
               <Card
                 title={`Лучший бренд (${activeBrandMonth.name})`}
                 value={bestBrand?.name || "Данные скоро появятся"}
@@ -1305,7 +1493,14 @@ const App = () => {
                   onToggleExpandedBrand={setExpandedBrandName}
                 />
               )}
-              {activeSalesTab === "managers" && <PlaceholderChart title="Динамика продаж по менеджерам" />}
+              {activeSalesTab === "managers" && (
+                <ManagerSalesAnalytics
+                  managers={managerSalesData}
+                  months={managerMonths}
+                  activeMonthName={activeManagerMonth.name}
+                  onActiveMonthChange={setActiveManagerMonthName}
+                />
+              )}
               {activeSalesTab === "seminars" && <PlaceholderChart title="Динамика продаж по семинарам" />}
               {activeSalesTab === "plan" && <PlaceholderChart title="План продаж" />}
             </div>
