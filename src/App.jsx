@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   BarChart,
   Bar,
@@ -31,13 +31,12 @@ import {
   Users,
 } from "lucide-react";
 import { FALLBACK_DATA } from "./data/fallbackData";
-import { loadBrandSalesDataFromGoogleSheets, loadDashboardDataFromGoogleSheets } from "./services/googleSheets";
+import { BRAND_SALES_DATA } from "./data/brandSalesData";
+import { loadDashboardDataFromGoogleSheets } from "./services/googleSheets";
 import { OPEX_COLORS, TAX_COLORS } from "./utils/chartColors";
 import { formatCurrency, formatMillion, formatRevenueShare } from "./utils/formatters";
 
 const SHEET_ID = import.meta.env.VITE_GOOGLE_SHEET_ID || "";
-const BRANDS_SHEET_ID = import.meta.env.VITE_BRANDS_GOOGLE_SHEET_ID || "";
-const BRANDS_SHEET_NAME = import.meta.env.VITE_BRANDS_SHEET_NAME || "Бренды";
 
 const BUSINESS_UNITS = [
   { id: "company", label: "ООО Кристайл", enabled: false },
@@ -61,45 +60,6 @@ const SALES_TABS = [
 ];
 
 const BRAND_COLORS = ["#4f46e5", "#06b6d4", "#94a3b8", "#0ea5e9", "#f59e0b", "#22c55e", "#64748b", "#8b5cf6"];
-
-const FALLBACK_BRAND_SALES = [
-  {
-    name: "Alfaparf Milano",
-    purchasePlan: 3200000,
-    salesPlan: 4700000,
-    monthlySales: { Январь: 2380000, Февраль: 3120000, Март: 3860000 },
-  },
-  {
-    name: "Davines",
-    purchasePlan: 2600000,
-    salesPlan: 3900000,
-    monthlySales: { Январь: 1820000, Февраль: 2410000, Март: 3180000 },
-  },
-  {
-    name: "L'Oreal Professionnel",
-    purchasePlan: 2100000,
-    salesPlan: 3300000,
-    monthlySales: { Январь: 1650000, Февраль: 2050000, Март: 2710000 },
-  },
-  {
-    name: "Matrix",
-    purchasePlan: 1250000,
-    salesPlan: 2100000,
-    monthlySales: { Январь: 870000, Февраль: 1420000, Март: 1960000 },
-  },
-  {
-    name: "Estel",
-    purchasePlan: 980000,
-    salesPlan: 1600000,
-    monthlySales: { Январь: 740000, Февраль: 1080000, Март: 1350000 },
-  },
-  {
-    name: "Wella",
-    purchasePlan: 760000,
-    salesPlan: 1200000,
-    monthlySales: { Январь: 610000, Февраль: 790000, Март: 970000 },
-  },
-];
 
 const Card = ({ title, value, subValue, icon: Icon, colorClass, children }) => (
   <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex min-h-[180px] flex-col">
@@ -191,6 +151,23 @@ const PlaceholderChart = ({ title }) => (
 
 const getBrandMonthSales = (brand, monthName) => brand.monthlySales?.[monthName] || 0;
 
+const BRAND_MONTH_ORDER = [
+  "Январь",
+  "Февраль",
+  "Март",
+  "Апрель",
+  "Май",
+  "Июнь",
+  "Июль",
+  "Август",
+  "Сентябрь",
+  "Октябрь",
+  "Ноябрь",
+  "Декабрь",
+];
+
+const formatOptionalCurrency = (value) => (value > 0 ? formatCurrency(value) : "—");
+
 const getLatestBrandSales = (brand, months) => {
   for (let i = months.length - 1; i >= 0; i -= 1) {
     const value = getBrandMonthSales(brand, months[i].name);
@@ -202,14 +179,128 @@ const getLatestBrandSales = (brand, months) => {
   return 0;
 };
 
-const BrandSalesAnalytics = ({ brands, months, latestMonth, selectedBrandName, onSelectBrand }) => {
-  const latestRevenue = latestMonth?.revenue || 0;
+const BrandSalesAnalytics = ({
+  brands,
+  months,
+  latestMonth,
+  activeMonthName,
+  onActiveMonthChange,
+  selectedBrandName,
+  expandedBrandName,
+  onSelectBrand,
+  onToggleExpandedBrand,
+}) => {
+  const graphRef = useRef(null);
+  const lastScrollYRef = useRef(0);
+  const animationFrameRef = useRef(0);
+  const settleTimerRef = useRef(0);
+  const [highlightedBrandName, setHighlightedBrandName] = useState("");
+  const [chartLag, setChartLag] = useState(0);
+  const activeMonth = months.find((month) => month.name === activeMonthName) || latestMonth || months[months.length - 1];
+  const activeRevenue = activeMonth?.revenue || 0;
   const selectedBrand = brands.find((brand) => brand.name === selectedBrandName);
+  const toggleBrand = (brandName) => {
+    setHighlightedBrandName(highlightedBrandName === brandName ? "" : brandName);
+  };
+  const showBrandChart = (brandName) => {
+    setHighlightedBrandName(brandName);
+    onSelectBrand(brandName);
+    setTimeout(() => {
+      graphRef.current?.scrollIntoView({ behavior: "auto", block: "start" });
+    }, 0);
+  };
+  const toggleExpandedBrand = (brandName) => {
+    onToggleExpandedBrand(expandedBrandName === brandName ? "" : brandName);
+    onSelectBrand("");
+  };
+
+  useEffect(() => {
+    if (!months.length) {
+      return;
+    }
+
+    const monthExists = months.some((month) => month.name === activeMonthName);
+    if (!monthExists) {
+      onActiveMonthChange(latestMonth?.name || months[months.length - 1].name);
+    }
+  }, [activeMonthName, latestMonth?.name, months, onActiveMonthChange]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return undefined;
+    }
+
+    const mediaQuery = window.matchMedia("(min-width: 1280px)");
+    let targetLag = 0;
+    let currentLag = 0;
+
+    const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+    const animateLag = () => {
+      currentLag += (targetLag - currentLag) * 0.18;
+      if (Math.abs(targetLag - currentLag) < 0.25) {
+        currentLag = targetLag;
+      }
+
+      setChartLag(Number(currentLag.toFixed(1)));
+
+      if (currentLag !== targetLag) {
+        animationFrameRef.current = window.requestAnimationFrame(animateLag);
+      } else {
+        animationFrameRef.current = 0;
+      }
+    };
+    const startLagAnimation = () => {
+      if (!animationFrameRef.current) {
+        animationFrameRef.current = window.requestAnimationFrame(animateLag);
+      }
+    };
+    const handleScroll = () => {
+      if (!mediaQuery.matches || selectedBrandName) {
+        targetLag = 0;
+        startLagAnimation();
+        return;
+      }
+
+      const currentScrollY = window.scrollY;
+      const delta = currentScrollY - lastScrollYRef.current;
+      lastScrollYRef.current = currentScrollY;
+
+      targetLag = clamp(delta * 0.45, -12, 30);
+      startLagAnimation();
+
+      window.clearTimeout(settleTimerRef.current);
+      settleTimerRef.current = window.setTimeout(() => {
+        targetLag = 0;
+        startLagAnimation();
+      }, 140);
+    };
+    const handleMediaChange = () => {
+      if (!mediaQuery.matches) {
+        targetLag = 0;
+        currentLag = 0;
+        setChartLag(0);
+      }
+    };
+
+    lastScrollYRef.current = window.scrollY;
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    mediaQuery.addEventListener("change", handleMediaChange);
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      mediaQuery.removeEventListener("change", handleMediaChange);
+      window.clearTimeout(settleTimerRef.current);
+      if (animationFrameRef.current) {
+        window.cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, [selectedBrandName]);
+
   const rows = brands
     .map((brand, index) => ({
       ...brand,
       color: BRAND_COLORS[index % BRAND_COLORS.length],
-      latestFact: getBrandMonthSales(brand, latestMonth.name) || getLatestBrandSales(brand, months),
+      latestFact: getBrandMonthSales(brand, activeMonth.name) || getLatestBrandSales(brand, months),
     }))
     .sort((a, b) => b.latestFact - a.latestFact);
 
@@ -225,13 +316,47 @@ const BrandSalesAnalytics = ({ brands, months, latestMonth, selectedBrandName, o
       })
     : [];
 
+  if (!brands.length) {
+    return (
+      <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+        <Tags className="mx-auto mb-4 text-slate-300" size={36} />
+        <h2 className="text-xl font-bold text-slate-800">Бренды не загружены</h2>
+        <p className="mt-2 text-sm text-slate-500">Проверьте локальный файл с данными брендов.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8">
+      <div className="rounded-2xl bg-white p-4">
+        <div className="flex w-full flex-nowrap gap-3 overflow-x-auto md:overflow-visible">
+          {months.map((month) => (
+            <button
+              key={month.name}
+              type="button"
+              onClick={() => onActiveMonthChange(month.name)}
+              className={`min-w-32 shrink-0 rounded-full px-5 py-2 text-sm font-bold transition-colors md:min-w-0 md:flex-1 ${
+                activeMonth.name === month.name
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              {month.name}
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)]">
-        <div className="rounded-2xl bg-white p-5">
+        <div className="rounded-2xl bg-white p-5 xl:sticky xl:top-6 xl:self-start">
+          <div
+            className="transition-transform duration-300 ease-out will-change-transform"
+            style={{ transform: `translateY(${chartLag}px)` }}
+          >
           <div className="mb-4">
-            <h2 className="text-xl font-bold text-slate-800">Продажи брендов: {latestMonth.name}</h2>
-            <p className="text-sm text-slate-500">Доля считается от общей выручки месяца.</p>
+            <div>
+              <h2 className="text-xl font-bold text-slate-800">Продажи брендов: {activeMonth.name}</h2>
+              <p className="text-sm text-slate-500">Доля считается от общей выручки месяца.</p>
+            </div>
           </div>
           <div className="h-[420px]">
             <ResponsiveContainer width="100%" height="100%">
@@ -244,14 +369,14 @@ const BrandSalesAnalytics = ({ brands, months, latestMonth, selectedBrandName, o
                   outerRadius={180}
                   paddingAngle={3}
                   dataKey="latestFact"
-                  onClick={(entry) => onSelectBrand(entry.name)}
+                  onClick={(entry) => toggleBrand(entry.name)}
                 >
                   {chartData.map((entry) => (
                     <Cell
                       key={entry.name}
                       fill={entry.color}
-                      stroke={selectedBrandName === entry.name ? "#0f172a" : "#ffffff"}
-                      strokeWidth={selectedBrandName === entry.name ? 3 : 2}
+                      stroke={highlightedBrandName === entry.name ? "#0f172a" : "#ffffff"}
+                      strokeWidth={highlightedBrandName === entry.name ? 3 : 2}
                     />
                   ))}
                 </Pie>
@@ -262,38 +387,68 @@ const BrandSalesAnalytics = ({ brands, months, latestMonth, selectedBrandName, o
               </PieChart>
             </ResponsiveContainer>
           </div>
+          </div>
         </div>
 
         <div className="space-y-4">
           {rows.map((brand) => {
-            const isActive = selectedBrandName === brand.name;
-            const share = latestRevenue ? ((brand.latestFact / latestRevenue) * 100).toFixed(1) : "0.0";
+            const isHighlighted = highlightedBrandName === brand.name;
+            const share = activeRevenue ? ((brand.latestFact / activeRevenue) * 100).toFixed(1) : "0.0";
+            const isPlanDone = brand.salesPlan > 0 && brand.latestFact >= brand.salesPlan;
+            const factColorClass =
+              brand.salesPlan <= 0 ? "text-slate-900" : isPlanDone ? "text-emerald-600" : "text-red-500";
 
             return (
-              <button
+              <div
                 key={brand.name}
-                type="button"
-                onClick={() => onSelectBrand(brand.name)}
-                className={`flex w-full items-center justify-between gap-4 rounded-2xl p-4 text-left transition-colors ${
-                  isActive ? "bg-blue-50 ring-2 ring-blue-200" : "bg-slate-50 hover:bg-slate-100"
+                role="button"
+                tabIndex={0}
+                onClick={() => toggleBrand(brand.name)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    toggleBrand(brand.name);
+                  }
+                }}
+                className={`grid w-full grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-4 rounded-2xl p-4 text-left transition-colors ${
+                  isHighlighted ? "bg-blue-50 ring-2 ring-blue-200" : "bg-slate-50 hover:bg-slate-100"
                 }`}
               >
                 <div className="flex min-w-0 items-center gap-4">
                   <span className="h-4 w-4 shrink-0 rounded-full" style={{ backgroundColor: brand.color }} />
                   <span className="min-w-0 text-lg font-black text-slate-800">{brand.name}</span>
+                  {isHighlighted && (
+                    <button
+                      type="button"
+                      aria-label={`Показать график: ${brand.name}`}
+                      title="Показать график"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        showBrandChart(brand.name);
+                      }}
+                      className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white shadow-sm transition-colors hover:bg-blue-700"
+                    >
+                      <TrendingUp size={20} />
+                    </button>
+                  )}
                 </div>
                 <div className="shrink-0 text-right">
-                  <div className="text-lg font-black text-slate-900">{formatCurrency(brand.latestFact)}</div>
+                  <div className="text-xs font-black uppercase tracking-wider text-slate-400">План</div>
+                  <div className="text-base font-black text-slate-700">{formatOptionalCurrency(brand.salesPlan)}</div>
+                </div>
+                <div className="shrink-0 text-right">
+                  <div className="text-xs font-black uppercase tracking-wider text-slate-400">Факт</div>
+                  <div className={`text-lg font-black ${factColorClass}`}>{formatCurrency(brand.latestFact)}</div>
                   <div className="text-sm font-semibold text-slate-400">{share}% от выручки</div>
                 </div>
-              </button>
+              </div>
             );
           })}
         </div>
       </div>
 
       {selectedBrand && (
-        <div className="rounded-2xl border border-slate-100 bg-white p-6">
+        <div ref={graphRef} className="rounded-2xl border border-slate-100 bg-white p-6">
           <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <h3 className="text-lg font-bold text-slate-800">Динамика продаж: {selectedBrand.name}</h3>
@@ -351,18 +506,84 @@ const BrandSalesAnalytics = ({ brands, months, latestMonth, selectedBrandName, o
               <th className="px-5 py-4 font-bold">Бренд</th>
               <th className="px-5 py-4 font-bold text-right">План выкупа у поставщика</th>
               <th className="px-5 py-4 font-bold text-right">План продаж</th>
-              <th className="px-5 py-4 font-bold text-right">Факт продаж за {latestMonth.name}</th>
+              <th className="px-5 py-4 font-bold text-right">Факт продаж за {activeMonth.name}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {rows.map((brand) => (
-              <tr key={brand.name} className="hover:bg-slate-50/70">
-                <td className="px-5 py-4 font-bold text-slate-800">{brand.name}</td>
-                <td className="px-5 py-4 text-right text-slate-600">{formatCurrency(brand.purchasePlan)}</td>
-                <td className="px-5 py-4 text-right text-slate-600">{formatCurrency(brand.salesPlan)}</td>
-                <td className="px-5 py-4 text-right font-black text-blue-600">{formatCurrency(brand.latestFact)}</td>
-              </tr>
-            ))}
+            {rows.map((brand) => {
+              const isExpanded = expandedBrandName === brand.name;
+              const isPlanDone = brand.salesPlan > 0 && brand.latestFact >= brand.salesPlan;
+              const factColorClass =
+                brand.salesPlan <= 0 ? "text-blue-600" : isPlanDone ? "text-emerald-600" : "text-red-500";
+
+              return (
+                <React.Fragment key={brand.name}>
+                  <tr
+                    onClick={() => toggleExpandedBrand(brand.name)}
+                    className={`cursor-pointer transition-colors ${isExpanded ? "bg-blue-50" : "hover:bg-slate-50/70"}`}
+                  >
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-3">
+                        <span
+                          aria-hidden="true"
+                          className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-slate-500 transition-transform ${
+                            isExpanded ? "rotate-180 border-blue-200 bg-white text-blue-600" : "border-slate-200 bg-slate-50"
+                          }`}
+                        >
+                          <ChevronDown size={16} />
+                        </span>
+                        <span className="font-bold text-slate-800">{brand.name}</span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-4 text-right text-slate-600">{formatOptionalCurrency(brand.purchasePlan)}</td>
+                    <td className="px-5 py-4 text-right text-slate-600">{formatOptionalCurrency(brand.salesPlan)}</td>
+                    <td className={`px-5 py-4 text-right font-black ${factColorClass}`}>{formatCurrency(brand.latestFact)}</td>
+                  </tr>
+                  {isExpanded && (
+                    <tr className="bg-blue-50/50">
+                      <td colSpan={4} className="px-5 pb-5 pt-0">
+                        <div className="rounded-2xl border border-blue-100 bg-white p-4">
+                          <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                              <div>
+                              <div className="text-sm font-bold text-slate-800">Продажи по месяцам</div>
+                              <div className="text-xs font-semibold text-slate-400">{brand.name}</div>
+                              </div>
+                              <button
+                                type="button"
+                                aria-label={`Показать график: ${brand.name}`}
+                                title="Показать график"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  showBrandChart(brand.name);
+                                }}
+                                className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-sm font-bold transition-colors ${
+                                  selectedBrandName === brand.name
+                                    ? "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                                    : "bg-blue-600 text-white hover:bg-blue-700"
+                                }`}
+                              >
+                                <TrendingUp size={20} />
+                              </button>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                            {months.map((month) => (
+                              <div key={month.name} className="rounded-xl bg-slate-50 px-4 py-3">
+                                <div className="text-xs font-black uppercase tracking-wider text-slate-400">{month.name}</div>
+                                <div className="mt-1 text-base font-black text-slate-800">
+                                  {formatCurrency(getBrandMonthSales(brand, month.name))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -376,8 +597,10 @@ const App = () => {
   const [activeSalesTab, setActiveSalesTab] = useState("brands");
   const [activeBusinessUnit] = useState("tyumen");
   const [processedData, setProcessedData] = useState(FALLBACK_DATA);
-  const [brandSalesData, setBrandSalesData] = useState(FALLBACK_BRAND_SALES);
+  const [brandSalesData] = useState(BRAND_SALES_DATA);
   const [selectedBrandName, setSelectedBrandName] = useState("");
+  const [expandedBrandName, setExpandedBrandName] = useState("");
+  const [activeBrandMonthName, setActiveBrandMonthName] = useState("");
   const [selectedMonth, setSelectedMonth] = useState(FALLBACK_DATA[FALLBACK_DATA.length - 1]);
   const [cardMonths, setCardMonths] = useState({
     revenue: FALLBACK_DATA[FALLBACK_DATA.length - 1].name,
@@ -386,11 +609,8 @@ const App = () => {
   });
   const [expenseTrendSelection, setExpenseTrendSelection] = useState(null);
   const [loading, setLoading] = useState(Boolean(SHEET_ID));
-  const [brandLoading, setBrandLoading] = useState(Boolean(BRANDS_SHEET_ID));
   const [error, setError] = useState("");
-  const [brandError, setBrandError] = useState("");
   const [sourceMode, setSourceMode] = useState(SHEET_ID ? "google" : "fallback");
-  const [brandSourceMode, setBrandSourceMode] = useState(BRANDS_SHEET_ID ? "google" : "fallback");
 
   useEffect(() => {
     const run = async () => {
@@ -425,35 +645,47 @@ const App = () => {
     run();
   }, []);
 
-  useEffect(() => {
-    const run = async () => {
-      if (!BRANDS_SHEET_ID) {
-        setBrandSourceMode("fallback");
-        return;
-      }
-
-      setBrandLoading(true);
-      setBrandError("");
-      try {
-        const data = await loadBrandSalesDataFromGoogleSheets(BRANDS_SHEET_ID, BRANDS_SHEET_NAME);
-        if (!data.length) {
-          throw new Error("В таблице брендов не найдено строк с продажами.");
-        }
-        setBrandSalesData(data);
-        setBrandSourceMode("google");
-      } catch (loadError) {
-        setBrandError(loadError.message || "Не удалось загрузить данные брендов из Google Sheets.");
-        setBrandSourceMode("fallback");
-      } finally {
-        setBrandLoading(false);
-      }
-    };
-
-    run();
-  }, []);
-
   const firstMonth = processedData[0];
   const latestMonth = processedData[processedData.length - 1];
+  const brandMonths = useMemo(() => {
+    const availableMonthNames = BRAND_MONTH_ORDER.filter((monthName) =>
+      brandSalesData.some((brand) => Object.prototype.hasOwnProperty.call(brand.monthlySales || {}, monthName)),
+    );
+
+    return availableMonthNames.map((monthName) => processedData.find((month) => month.name === monthName) || { name: monthName, revenue: 0 });
+  }, [brandSalesData, processedData]);
+  const latestBrandMonth = brandMonths[brandMonths.length - 1] || latestMonth;
+  const activeBrandMonth = brandMonths.find((month) => month.name === activeBrandMonthName) || latestBrandMonth;
+  const bestBrand = useMemo(() => {
+    if (!brandSalesData.length || !activeBrandMonth) {
+      return null;
+    }
+
+    return brandSalesData
+      .map((brand) => {
+        const sales = getBrandMonthSales(brand, activeBrandMonth.name);
+        const revenueShare = activeBrandMonth.revenue ? (sales / activeBrandMonth.revenue) * 100 : 0;
+
+        return {
+          ...brand,
+          sales,
+          revenueShare,
+        };
+      })
+      .sort((a, b) => b.revenueShare - a.revenueShare || b.sales - a.sales)[0];
+  }, [activeBrandMonth, brandSalesData]);
+
+  useEffect(() => {
+    if (!brandMonths.length) {
+      return;
+    }
+
+    const monthExists = brandMonths.some((month) => month.name === activeBrandMonthName);
+    if (!monthExists) {
+      setActiveBrandMonthName(latestBrandMonth.name);
+    }
+  }, [activeBrandMonthName, brandMonths, latestBrandMonth.name]);
+
   const revenueGrowth = firstMonth?.revenue
     ? ((latestMonth.revenue / firstMonth.revenue - 1) * 100).toFixed(0)
     : "0";
@@ -577,7 +809,7 @@ const App = () => {
             <p className="text-slate-500 mt-1">
               {portalMode === "finances"
                 ? `Источник: ${sourceMode === "google" ? "Google Sheets" : "Демо-данные"}`
-                : `Источник продаж: ${brandSourceMode === "google" ? "Google Sheets" : "Демо-данные"}`}
+                : "Источник продаж: локальный файл брендов"}
             </p>
           </div>
           <div className="flex items-center gap-3 overflow-x-auto">
@@ -633,26 +865,6 @@ const App = () => {
           <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-900 text-sm">
             Чтобы включить автообновление: добавьте в Vercel переменную{" "}
             <code className="font-mono">VITE_GOOGLE_SHEET_ID</code>.
-          </div>
-        )}
-
-        {portalMode === "sales" && brandLoading && (
-          <div className="mb-6 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-blue-700 text-sm">
-            Загружаю продажи брендов из Google Sheets...
-          </div>
-        )}
-
-        {portalMode === "sales" && brandError && (
-          <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-800 text-sm">
-            {brandError} Сейчас показываю демо-структуру брендов.
-          </div>
-        )}
-
-        {portalMode === "sales" && activeSalesTab === "brands" && !BRANDS_SHEET_ID && (
-          <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-900 text-sm">
-            Чтобы подключить отдельную таблицу брендов: добавьте переменные{" "}
-            <code className="font-mono">VITE_BRANDS_GOOGLE_SHEET_ID</code> и{" "}
-            <code className="font-mono">VITE_BRANDS_SHEET_NAME</code>.
           </div>
         )}
 
@@ -746,21 +958,23 @@ const App = () => {
 
           {activeTab === "structure" && (
             <div className="space-y-8 animate-in fade-in duration-500">
-              <div className="flex justify-between items-center">
-                <h2 className="text-xl font-bold">Расшифровка расходов и налогов</h2>
-                <div className="flex gap-2">
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <div className="flex w-full flex-nowrap gap-3 overflow-x-auto md:overflow-visible">
                   {processedData.map((m) => (
                     <button
                       key={m.name}
                       onClick={() => setSelectedMonth(m)}
-                      className={`px-3 py-1 rounded-full text-xs font-bold transition-colors ${
-                        selectedMonth.name === m.name ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      className={`min-w-32 shrink-0 rounded-full px-5 py-2 text-sm font-bold transition-colors md:min-w-0 md:flex-1 ${
+                        selectedMonth.name === m.name ? "bg-indigo-600 text-white shadow-sm" : "bg-white text-slate-600 hover:bg-slate-100"
                       }`}
                     >
                       {m.name}
                     </button>
                   ))}
                 </div>
+              </div>
+              <div>
+                <h2 className="text-xl font-bold">Расшифровка расходов и налогов</h2>
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
                 <div className="space-y-4">
@@ -1063,18 +1277,32 @@ const App = () => {
         ) : (
           <>
             <div className="grid grid-cols-1 gap-5 mb-8 md:grid-cols-3">
-              <Card title="Лучший продавец" value="Данные скоро появятся" subValue="Подключим продажи из Google Sheets" icon={Trophy} colorClass="bg-blue-500" />
-              <Card title="Лучший бренд" value="Данные скоро появятся" subValue="Будет рейтинг брендов" icon={Tags} colorClass="bg-emerald-500" />
+              <Card title="Лучший продавец" value="Данные скоро появятся" subValue="Подключим рейтинг продавцов" icon={Trophy} colorClass="bg-blue-500" />
+              <Card
+                title={`Лучший бренд (${activeBrandMonth.name})`}
+                value={bestBrand?.name || "Данные скоро появятся"}
+                subValue={
+                  bestBrand
+                    ? `${formatCurrency(bestBrand.sales)} · ${bestBrand.revenueShare.toFixed(1)}% от выручки`
+                    : "Будет рейтинг брендов"
+                }
+                icon={Tags}
+                colorClass="bg-emerald-500"
+              />
               <Card title="Лучший семинар" value="Данные скоро появятся" subValue="Будет аналитика семинаров" icon={FileText} colorClass="bg-amber-500" />
             </div>
             <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 min-h-[500px]">
               {activeSalesTab === "brands" && (
                 <BrandSalesAnalytics
                   brands={brandSalesData}
-                  months={processedData}
-                  latestMonth={latestMonth}
+                  months={brandMonths}
+                  latestMonth={latestBrandMonth}
+                  activeMonthName={activeBrandMonth.name}
+                  onActiveMonthChange={setActiveBrandMonthName}
                   selectedBrandName={selectedBrandName}
+                  expandedBrandName={expandedBrandName}
                   onSelectBrand={setSelectedBrandName}
+                  onToggleExpandedBrand={setExpandedBrandName}
                 />
               )}
               {activeSalesTab === "managers" && <PlaceholderChart title="Динамика продаж по менеджерам" />}
