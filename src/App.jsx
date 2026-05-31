@@ -169,6 +169,8 @@ const BRAND_MONTH_ORDER = [
   "Декабрь",
 ];
 
+const BRAND_MANAGER_FILTERS = ["", "Красина", "Травина", "Тарасевич"];
+
 const formatOptionalCurrency = (value) => (value > 0 ? formatCurrency(value) : "—");
 
 const getLatestBrandSales = (brand, months) => {
@@ -199,6 +201,7 @@ const BrandSalesAnalytics = ({
   const settleTimerRef = useRef(0);
   const [highlightedBrandName, setHighlightedBrandName] = useState("");
   const [chartLag, setChartLag] = useState(0);
+  const [selectedBrandManagerName, setSelectedBrandManagerName] = useState("");
   const activeMonth = months.find((month) => month.name === activeMonthName) || latestMonth || months[months.length - 1];
   const activeRevenue = activeMonth?.revenue || 0;
   const selectedBrand = brands.find((brand) => brand.name === selectedBrandName);
@@ -208,9 +211,6 @@ const BrandSalesAnalytics = ({
   const showBrandChart = (brandName) => {
     setHighlightedBrandName(brandName);
     onSelectBrand(brandName);
-    setTimeout(() => {
-      graphRef.current?.scrollIntoView({ behavior: "auto", block: "start" });
-    }, 0);
   };
   const toggleExpandedBrand = (brandName) => {
     onToggleExpandedBrand(expandedBrandName === brandName ? "" : brandName);
@@ -227,6 +227,12 @@ const BrandSalesAnalytics = ({
       onActiveMonthChange(latestMonth?.name || months[months.length - 1].name);
     }
   }, [activeMonthName, latestMonth?.name, months, onActiveMonthChange]);
+
+  useEffect(() => {
+    if (selectedBrandName) {
+      graphRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [selectedBrandName]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -311,7 +317,9 @@ const BrandSalesAnalytics = ({
   const chartData = rows.filter((brand) => brand.latestFact > 0);
   const trendData = selectedBrand
     ? months.map((month) => {
-        const value = getBrandMonthSales(selectedBrand, month.name);
+        const value = selectedBrandManagerName
+          ? selectedBrand.managerMonthlySales?.[selectedBrandManagerName]?.[month.name] || 0
+          : getBrandMonthSales(selectedBrand, month.name);
         return {
           name: month.name,
           sales: value,
@@ -456,7 +464,10 @@ const BrandSalesAnalytics = ({
           <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <h3 className="text-lg font-bold text-slate-800">Динамика продаж: {selectedBrand.name}</h3>
-              <p className="text-sm text-slate-500">Столбцы показывают продажи бренда, линия — процент от выручки.</p>
+              <p className="text-sm text-slate-500">
+                Столбцы показывают продажи {selectedBrandManagerName ? `менеджера ${selectedBrandManagerName}` : "бренда"}, линия
+                — процент от выручки.
+              </p>
             </div>
             <button
               type="button"
@@ -465,6 +476,22 @@ const BrandSalesAnalytics = ({
             >
               Скрыть график
             </button>
+          </div>
+          <div className="mb-6 flex w-full flex-nowrap gap-3 overflow-x-auto pb-1">
+            {BRAND_MANAGER_FILTERS.map((managerName) => (
+              <button
+                key={managerName || "all"}
+                type="button"
+                onClick={() => setSelectedBrandManagerName(managerName)}
+                className={`shrink-0 rounded-full px-5 py-2 text-sm font-bold transition-colors ${
+                  selectedBrandManagerName === managerName
+                    ? "bg-blue-600 text-white shadow-sm"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+              >
+                {managerName || "Все менеджеры"}
+              </button>
+            ))}
           </div>
           <div className="h-[360px] w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -596,16 +623,34 @@ const BrandSalesAnalytics = ({
 };
 
 const ManagerSalesAnalytics = ({ managers, months, activeMonthName, onActiveMonthChange }) => {
+  const graphRef = useRef(null);
+  const [highlightedManagerName, setHighlightedManagerName] = useState("");
+  const [expandedManagerName, setExpandedManagerName] = useState("");
+  const [selectedManagerName, setSelectedManagerName] = useState("");
   const activeMonth = months.find((month) => month.name === activeMonthName) || months[months.length - 1];
   const activeRevenue = activeMonth?.revenue || 0;
+  const toggleManager = (managerName) => {
+    setHighlightedManagerName(highlightedManagerName === managerName ? "" : managerName);
+  };
+  const showManagerChart = (managerName) => {
+    setHighlightedManagerName(managerName);
+    setSelectedManagerName(managerName);
+  };
+  const toggleExpandedManager = (managerName) => {
+    setExpandedManagerName(expandedManagerName === managerName ? "" : managerName);
+  };
 
   const rows = managers
     .map((manager, index) => {
       const sales = getBrandMonthSales(manager, activeMonth.name);
+      const plan = manager.monthlyPlan?.[activeMonth.name] || 0;
       return {
         ...manager,
         color: MANAGER_COLORS[index % MANAGER_COLORS.length],
         sales,
+        plan,
+        kpis: manager.monthlyKpis?.[activeMonth.name] || [],
+        planCompletion: plan ? Number(((sales / plan) * 100).toFixed(1)) : 0,
         revenueShare: activeRevenue ? Number(((sales / activeRevenue) * 100).toFixed(1)) : 0,
       };
     })
@@ -619,6 +664,23 @@ const ManagerSalesAnalytics = ({ managers, months, activeMonthName, onActiveMont
     });
     return row;
   });
+  const selectedManager = managers.find((manager) => manager.name === selectedManagerName);
+  const selectedTrendData = selectedManager
+    ? months.map((month) => {
+        const sales = getBrandMonthSales(selectedManager, month.name);
+        return {
+          name: month.name,
+          sales,
+          revenueShare: month.revenue ? Number(((sales / month.revenue) * 100).toFixed(1)) : 0,
+        };
+      })
+    : [];
+
+  useEffect(() => {
+    if (selectedManagerName) {
+      graphRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [selectedManagerName]);
 
   if (!managers.length) {
     return (
@@ -651,11 +713,11 @@ const ManagerSalesAnalytics = ({ managers, months, activeMonthName, onActiveMont
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)]">
+      <div className="grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(680px,1.25fr)]">
         <div className="rounded-2xl bg-white p-5">
           <div className="mb-4">
             <h2 className="text-xl font-bold text-slate-800">Продажи менеджеров: {activeMonth.name}</h2>
-            <p className="text-sm text-slate-500">Доля считается от общей выручки компании.</p>
+            <p className="text-sm text-slate-500">Доля считается от общей выручки тюменского офиса.</p>
           </div>
           <div className="h-[420px]">
             <ResponsiveContainer width="100%" height="100%">
@@ -668,9 +730,15 @@ const ManagerSalesAnalytics = ({ managers, months, activeMonthName, onActiveMont
                   outerRadius={180}
                   paddingAngle={3}
                   dataKey="sales"
+                  onClick={(entry) => toggleManager(entry.name)}
                 >
                   {chartData.map((entry) => (
-                    <Cell key={entry.name} fill={entry.color} stroke="#ffffff" strokeWidth={2} />
+                    <Cell
+                      key={entry.name}
+                      fill={entry.color}
+                      stroke={highlightedManagerName === entry.name ? "#0f172a" : "#ffffff"}
+                      strokeWidth={highlightedManagerName === entry.name ? 3 : 2}
+                    />
                   ))}
                 </Pie>
                 <Tooltip formatter={(value) => [formatCurrency(value), "Продажи"]} />
@@ -680,21 +748,169 @@ const ManagerSalesAnalytics = ({ managers, months, activeMonthName, onActiveMont
         </div>
 
         <div className="space-y-4">
-          {rows.map((manager) => (
-            <div key={manager.name} className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-4 rounded-2xl bg-slate-50 p-4">
-              <div className="flex min-w-0 items-center gap-4">
-                <span className="h-4 w-4 shrink-0 rounded-full" style={{ backgroundColor: manager.color }} />
-                <span className="min-w-0 text-lg font-black text-slate-800">{manager.name}</span>
-              </div>
-              <div className="shrink-0 text-right">
-                <div className="text-xs font-black uppercase tracking-wider text-slate-400">Продажи</div>
-                <div className="text-lg font-black text-slate-900">{formatCurrency(manager.sales)}</div>
-                <div className="text-sm font-semibold text-slate-400">{manager.revenueShare}% от выручки</div>
-              </div>
-            </div>
-          ))}
+          {rows.map((manager) => {
+            const isHighlighted = highlightedManagerName === manager.name;
+            const isExpanded = expandedManagerName === manager.name;
+            const hasKpis = manager.kpis.length > 0;
+            const isPlanDone = manager.plan > 0 && manager.sales >= manager.plan;
+            const factColorClass =
+              manager.plan <= 0 ? "text-slate-900" : isPlanDone ? "text-emerald-600" : "text-red-500";
+
+            return (
+              <React.Fragment key={manager.name}>
+                <div
+                  className={`relative grid w-full items-center gap-3 rounded-2xl p-4 text-left transition-colors ${
+                    manager.plan > 0 ? "grid-cols-[minmax(190px,1fr)_135px_175px]" : "grid-cols-[minmax(190px,1fr)_175px]"
+                  } ${isHighlighted ? "bg-blue-50 ring-2 ring-blue-200" : "bg-slate-50 hover:bg-slate-100"}`}
+                >
+                  <button
+                    type="button"
+                    aria-label={`Выбрать менеджера: ${manager.name}`}
+                    title={`Выбрать менеджера: ${manager.name}`}
+                    onClick={() => toggleManager(manager.name)}
+                    className="absolute inset-0 z-0 rounded-2xl"
+                  />
+                  <div className="pointer-events-none relative z-10 flex min-w-0 items-center gap-3">
+                    {hasKpis && (
+                      <button
+                        type="button"
+                        aria-label={`${isExpanded ? "Скрыть" : "Показать"} KPI: ${manager.name}`}
+                        title={`${isExpanded ? "Скрыть" : "Показать"} KPI`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          toggleExpandedManager(manager.name);
+                        }}
+                        className={`pointer-events-auto inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-slate-500 transition-transform ${
+                          isExpanded ? "rotate-180 border-blue-200 bg-white text-blue-600" : "border-slate-200 bg-white"
+                        }`}
+                      >
+                        <ChevronDown size={17} />
+                      </button>
+                    )}
+                    <span className="h-4 w-4 shrink-0 rounded-full" style={{ backgroundColor: manager.color }} />
+                    <span className="min-w-0 truncate text-base font-black text-slate-800">{manager.name}</span>
+                    {isHighlighted && (
+                      <button
+                        type="button"
+                        aria-label={`Показать график: ${manager.name}`}
+                        title="Показать график"
+                        onMouseDown={(event) => {
+                          event.stopPropagation();
+                          showManagerChart(manager.name);
+                        }}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                        }}
+                        className="pointer-events-auto inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white shadow-sm transition-colors hover:bg-blue-700"
+                      >
+                        <TrendingUp size={20} />
+                      </button>
+                    )}
+                  </div>
+                  {manager.plan > 0 && (
+                    <div className="pointer-events-none relative z-10 shrink-0 text-right">
+                      <div className="text-xs font-black uppercase tracking-wider text-slate-400">План</div>
+                      <div className="text-base font-black text-slate-700">{formatCurrency(manager.plan)}</div>
+                      <div className="text-xs font-semibold text-slate-400">{manager.planCompletion}% выполнения</div>
+                    </div>
+                  )}
+                  <div className="pointer-events-none relative z-10 shrink-0 text-right">
+                    <div className="text-xs font-black uppercase tracking-wider text-slate-400">Факт</div>
+                    <div className={`text-base font-black ${factColorClass}`}>{formatCurrency(manager.sales)}</div>
+                    <div className="text-xs font-semibold text-slate-400">{manager.revenueShare}% от выручки офиса</div>
+                  </div>
+                </div>
+                {hasKpis && isExpanded && (
+                  <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
+                    <div className="mb-3 text-sm font-bold text-slate-800">KPI за апрель: {manager.name}</div>
+                    <div className="overflow-x-auto rounded-xl border border-blue-100 bg-white">
+                      <table className="w-full min-w-[560px] text-left text-sm">
+                        <thead>
+                          <tr className="bg-slate-50 text-xs font-black uppercase tracking-wider text-slate-400">
+                            <th className="px-4 py-3">KPI</th>
+                            <th className="px-4 py-3 text-right">План</th>
+                            <th className="px-4 py-3 text-right">Факт</th>
+                            <th className="px-4 py-3 text-right">Выполнение</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {manager.kpis.map((kpi) => {
+                            const isKpiDone = kpi.fact >= kpi.plan;
+                            return (
+                              <tr key={kpi.name}>
+                                <td className="px-4 py-3 font-bold text-slate-800">{kpi.name}</td>
+                                <td className="px-4 py-3 text-right text-slate-600">{formatCurrency(kpi.plan)}</td>
+                                <td className={`px-4 py-3 text-right font-black ${isKpiDone ? "text-emerald-600" : "text-red-500"}`}>
+                                  {formatCurrency(kpi.fact)}
+                                </td>
+                                <td className={`px-4 py-3 text-right font-bold ${isKpiDone ? "text-emerald-600" : "text-red-500"}`}>
+                                  {kpi.plan ? ((kpi.fact / kpi.plan) * 100).toFixed(1) : "0.0"}%
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </React.Fragment>
+            );
+          })}
         </div>
       </div>
+
+      {selectedManager && (
+        <div ref={graphRef} className="rounded-2xl border border-slate-100 bg-white p-6">
+          <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h3 className="text-lg font-bold text-slate-800">Динамика продаж: {selectedManager.name}</h3>
+              <p className="text-sm text-slate-500">Столбцы показывают продажи менеджера, линия — долю от выручки офиса.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSelectedManagerName("")}
+              className="self-start rounded-lg bg-slate-100 px-4 py-2 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-200 md:self-auto"
+            >
+              Скрыть график
+            </button>
+          </div>
+          <div className="h-[360px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={selectedTrendData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#64748b" }} dy={10} />
+                <YAxis
+                  yAxisId="left"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: "#64748b" }}
+                  tickFormatter={(value) => `${(value / 1e6).toFixed(1)}M`}
+                />
+                <YAxis
+                  yAxisId="right"
+                  orientation="right"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: "#64748b" }}
+                  tickFormatter={(value) => `${value}%`}
+                />
+                <Tooltip formatter={(value, name) => [name.includes("%") ? `${value}%` : formatCurrency(value), name]} />
+                <Bar yAxisId="left" dataKey="sales" name="Продажи менеджера" fill="#2563eb" radius={[6, 6, 0, 0]} barSize={70} />
+                <Line
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey="revenueShare"
+                  name="% от выручки офиса"
+                  stroke="#f59e0b"
+                  strokeWidth={3}
+                  dot={{ r: 6, fill: "#f59e0b" }}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
 
       <div className="rounded-2xl border border-slate-100 bg-white p-6">
         <div className="mb-6">
