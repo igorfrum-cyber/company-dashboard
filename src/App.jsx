@@ -152,6 +152,7 @@ const PlaceholderChart = ({ title }) => (
 );
 
 const getBrandMonthSales = (brand, monthName) => brand.monthlySales?.[monthName] || 0;
+const getBrandMonthPlan = (brand, monthName) => brand.monthlySalesPlan?.[monthName] || brand.salesPlan || 0;
 
 const BRAND_MONTH_ORDER = [
   "Январь",
@@ -303,6 +304,7 @@ const BrandSalesAnalytics = ({
       ...brand,
       color: BRAND_COLORS[index % BRAND_COLORS.length],
       latestFact: getBrandMonthSales(brand, activeMonth.name) || getLatestBrandSales(brand, months),
+      salesPlan: getBrandMonthPlan(brand, activeMonth.name),
     }))
     .sort((a, b) => b.latestFact - a.latestFact);
 

@@ -48,6 +48,9 @@ export const BRAND_SALES_DATA = [
     "name": "бады",
     "purchasePlan": 0.0,
     "salesPlan": 0,
+    "monthlySalesPlan": {
+      "Апрель": 100000
+    },
     "monthlySales": {
       "Январь": 90115,
       "Февраль": 56165,
@@ -70,6 +73,9 @@ export const BRAND_SALES_DATA = [
     "name": "бонелли",
     "purchasePlan": 0.0,
     "salesPlan": 0,
+    "monthlySalesPlan": {
+      "Апрель": 440000
+    },
     "monthlySales": {
       "Январь": 230970,
       "Февраль": 127060,
@@ -81,6 +87,9 @@ export const BRAND_SALES_DATA = [
     "name": "ВЕК",
     "purchasePlan": 0.0,
     "salesPlan": 0,
+    "monthlySalesPlan": {
+      "Апрель": 615000
+    },
     "monthlySales": {
       "Январь": 465136,
       "Февраль": 425783,
@@ -125,6 +134,9 @@ export const BRAND_SALES_DATA = [
     "name": "клапп",
     "purchasePlan": 0.0,
     "salesPlan": 0,
+    "monthlySalesPlan": {
+      "Апрель": 770000
+    },
     "monthlySales": {
       "Январь": 852735,
       "Февраль": 809506.6,
@@ -158,6 +170,9 @@ export const BRAND_SALES_DATA = [
     "name": "кристина",
     "purchasePlan": 0.0,
     "salesPlan": 0,
+    "monthlySalesPlan": {
+      "Апрель": 1320000
+    },
     "monthlySales": {
       "Январь": 1300578.07,
       "Февраль": 948917.5,
@@ -180,6 +195,9 @@ export const BRAND_SALES_DATA = [
     "name": "левиссимо",
     "purchasePlan": 0.0,
     "salesPlan": 0,
+    "monthlySalesPlan": {
+      "Апрель": 410000
+    },
     "monthlySales": {
       "Январь": 328117,
       "Февраль": 291752,
@@ -213,6 +231,9 @@ export const BRAND_SALES_DATA = [
     "name": "новакутан",
     "purchasePlan": 0.0,
     "salesPlan": 0,
+    "monthlySalesPlan": {
+      "Апрель": 3690000
+    },
     "monthlySales": {
       "Январь": 2257021,
       "Февраль": 4125555,
@@ -268,6 +289,9 @@ export const BRAND_SALES_DATA = [
     "name": "синергия",
     "purchasePlan": 0.0,
     "salesPlan": 0,
+    "monthlySalesPlan": {
+      "Апрель": 750000
+    },
     "monthlySales": {
       "Январь": 691444.5,
       "Февраль": 753900.4,
@@ -279,6 +303,9 @@ export const BRAND_SALES_DATA = [
     "name": "скаймас",
     "purchasePlan": 0.0,
     "salesPlan": 0,
+    "monthlySalesPlan": {
+      "Апрель": 400000
+    },
     "monthlySales": {
       "Январь": 204470,
       "Февраль": 105500,
