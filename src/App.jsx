@@ -29,6 +29,7 @@ import {
   Trophy,
   Tags,
   Users,
+  Search,
 } from "lucide-react";
 import { FALLBACK_DATA } from "./data/fallbackData";
 import { BRAND_SALES_DATA } from "./data/brandSalesData";
@@ -203,6 +204,7 @@ const BrandSalesAnalytics = ({
   const [chartLag, setChartLag] = useState(0);
   const [selectedBrandManagerName, setSelectedBrandManagerName] = useState("");
   const [isPhone, setIsPhone] = useState(false);
+  const [brandSearchQuery, setBrandSearchQuery] = useState("");
   const activeMonth = months.find((month) => month.name === activeMonthName) || latestMonth || months[months.length - 1];
   const activeRevenue = activeMonth?.revenue || 0;
   const selectedBrand = brands.find((brand) => brand.name === selectedBrandName);
@@ -325,6 +327,7 @@ const BrandSalesAnalytics = ({
     .sort((a, b) => b.latestFact - a.latestFact);
 
   const chartData = rows.filter((brand) => brand.latestFact > 0);
+  const filteredRows = rows.filter((brand) => brand.name.toLowerCase().includes(brandSearchQuery.trim().toLowerCase()));
   const trendData = selectedBrand
     ? months.map((month) => {
         const value = selectedBrandManagerName
@@ -413,7 +416,17 @@ const BrandSalesAnalytics = ({
         </div>
 
         <div className="space-y-4">
-          {rows.map((brand) => {
+          <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+            <Search className="shrink-0 text-slate-400" size={20} />
+            <input
+              type="search"
+              value={brandSearchQuery}
+              onChange={(event) => setBrandSearchQuery(event.target.value)}
+              placeholder="Найти бренд"
+              className="min-w-0 flex-1 bg-transparent text-base font-semibold text-slate-800 outline-none placeholder:text-slate-400"
+            />
+          </label>
+          {filteredRows.map((brand) => {
             const isHighlighted = highlightedBrandName === brand.name;
             const share = activeRevenue ? ((brand.latestFact / activeRevenue) * 100).toFixed(1) : "0.0";
             const isPlanDone = brand.salesPlan > 0 && brand.latestFact >= brand.salesPlan;
@@ -466,6 +479,11 @@ const BrandSalesAnalytics = ({
               </div>
             );
           })}
+          {!filteredRows.length && (
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm font-semibold text-slate-500">
+              Бренды не найдены
+            </div>
+          )}
         </div>
       </div>
 
@@ -551,7 +569,7 @@ const BrandSalesAnalytics = ({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {rows.map((brand) => {
+            {filteredRows.map((brand) => {
               const isExpanded = expandedBrandName === brand.name;
               const isPlanDone = brand.salesPlan > 0 && brand.latestFact >= brand.salesPlan;
               const factColorClass =
@@ -1208,7 +1226,7 @@ const App = () => {
           </div>
         </aside>
         <main className="min-w-0 flex-1">
-        <header className="mb-6 flex flex-col justify-between gap-4 md:mb-8 md:flex-row md:items-center">
+        <header className="mb-6 flex flex-col justify-between gap-4 md:mb-8 xl:flex-row xl:items-center">
           <div>
             <h1 className="flex items-center gap-2 text-2xl font-black leading-tight text-slate-900 md:text-3xl md:leading-normal">
               <LayoutDashboard className="shrink-0 text-blue-600" />
@@ -1278,7 +1296,7 @@ const App = () => {
 
         {portalMode === "finances" ? (
           <>
-        <div className={`${activeTab === "overview" ? "grid" : "hidden md:grid"} mb-8 grid-cols-2 gap-3 [&>*:last-child]:col-span-2 md:grid-cols-5 md:gap-5 md:[&>*:last-child]:col-span-1`}>
+        <div className={`${activeTab === "overview" ? "grid" : "hidden md:grid"} mb-8 grid-cols-2 gap-3 [&>*:last-child]:col-span-2 md:gap-5 xl:grid-cols-5 xl:[&>*:last-child]:col-span-1`}>
           <Card
             title={`Выручка (${revenueCardMonth.name})`}
             value={formatMillion(revenueCardMonth.revenue)}
