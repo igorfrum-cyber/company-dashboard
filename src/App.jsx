@@ -359,7 +359,7 @@ const BrandSalesAnalytics = ({
         </div>
       </div>
       <div className="grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)]">
-        <div className="rounded-2xl bg-white p-5 xl:sticky xl:top-6 xl:self-start">
+        <div className="rounded-2xl bg-white p-3 md:p-5 xl:sticky xl:top-6 xl:self-start">
           <div
             className="transition-transform duration-300 ease-out will-change-transform"
             style={{ transform: `translateY(${chartLag}px)` }}
@@ -370,7 +370,7 @@ const BrandSalesAnalytics = ({
               <p className="text-sm text-slate-500">Доля считается от общей выручки месяца.</p>
             </div>
           </div>
-          <div className="h-[420px]">
+          <div className="h-[320px] md:h-[420px]">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
@@ -422,13 +422,13 @@ const BrandSalesAnalytics = ({
                     toggleBrand(brand.name);
                   }
                 }}
-                className={`grid w-full grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-4 rounded-2xl p-4 text-left transition-colors ${
+                className={`grid w-full grid-cols-2 gap-x-3 gap-y-3 rounded-2xl p-4 text-left transition-colors md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center md:gap-4 ${
                   isHighlighted ? "bg-blue-50 ring-2 ring-blue-200" : "bg-slate-50 hover:bg-slate-100"
                 }`}
               >
-                <div className="flex min-w-0 items-center gap-4">
+                <div className="col-span-2 flex min-w-0 items-center gap-3 md:col-span-1 md:gap-4">
                   <span className="h-4 w-4 shrink-0 rounded-full" style={{ backgroundColor: brand.color }} />
-                  <span className="min-w-0 text-lg font-black text-slate-800">{brand.name}</span>
+                  <span className="min-w-0 break-words text-base font-black text-slate-800 md:text-lg">{brand.name}</span>
                   {isHighlighted && (
                     <button
                       type="button"
@@ -444,7 +444,7 @@ const BrandSalesAnalytics = ({
                     </button>
                   )}
                 </div>
-                <div className="shrink-0 text-right">
+                <div className="shrink-0 text-left md:text-right">
                   <div className="text-xs font-black uppercase tracking-wider text-slate-400">План</div>
                   <div className="text-base font-black text-slate-700">{formatOptionalCurrency(brand.salesPlan)}</div>
                 </div>
@@ -460,7 +460,7 @@ const BrandSalesAnalytics = ({
       </div>
 
       {selectedBrand && (
-        <div ref={graphRef} className="rounded-2xl border border-slate-100 bg-white p-6">
+        <div ref={graphRef} className="rounded-2xl border border-slate-100 bg-white p-4 md:p-6">
           <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <h3 className="text-lg font-bold text-slate-800">Динамика продаж: {selectedBrand.name}</h3>
@@ -493,7 +493,7 @@ const BrandSalesAnalytics = ({
               </button>
             ))}
           </div>
-          <div className="h-[360px] w-full">
+          <div className="h-[300px] w-full md:h-[360px]">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={trendData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -530,7 +530,7 @@ const BrandSalesAnalytics = ({
         </div>
       )}
 
-      <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white">
+      <div className="overflow-x-auto rounded-2xl border border-slate-100 bg-white">
         <table className="w-full min-w-[760px] text-left text-sm">
           <thead>
             <tr className="bg-slate-50 text-slate-500 uppercase tracking-wider">
@@ -714,12 +714,12 @@ const ManagerSalesAnalytics = ({ managers, months, activeMonthName, onActiveMont
       </div>
 
       <div className="grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(680px,1.25fr)]">
-        <div className="rounded-2xl bg-white p-5">
+        <div className="rounded-2xl bg-white p-3 md:p-5">
           <div className="mb-4">
             <h2 className="text-xl font-bold text-slate-800">Продажи менеджеров: {activeMonth.name}</h2>
             <p className="text-sm text-slate-500">Доля считается от общей выручки тюменского офиса.</p>
           </div>
-          <div className="h-[420px]">
+          <div className="h-[320px] md:h-[420px]">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
@@ -760,7 +760,9 @@ const ManagerSalesAnalytics = ({ managers, months, activeMonthName, onActiveMont
               <React.Fragment key={manager.name}>
                 <div
                   className={`relative grid w-full items-center gap-3 rounded-2xl p-4 text-left transition-colors ${
-                    manager.plan > 0 ? "grid-cols-[minmax(190px,1fr)_135px_175px]" : "grid-cols-[minmax(190px,1fr)_175px]"
+                    manager.plan > 0
+                      ? "grid-cols-2 md:grid-cols-[minmax(190px,1fr)_135px_175px]"
+                      : "grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(190px,1fr)_175px]"
                   } ${isHighlighted ? "bg-blue-50 ring-2 ring-blue-200" : "bg-slate-50 hover:bg-slate-100"}`}
                 >
                   <button
@@ -770,7 +772,7 @@ const ManagerSalesAnalytics = ({ managers, months, activeMonthName, onActiveMont
                     onClick={() => toggleManager(manager.name)}
                     className="absolute inset-0 z-0 rounded-2xl"
                   />
-                  <div className="pointer-events-none relative z-10 flex min-w-0 items-center gap-3">
+                  <div className={`pointer-events-none relative z-10 flex min-w-0 items-center gap-3 ${manager.plan > 0 ? "col-span-2 md:col-span-1" : ""}`}>
                     {hasKpis && (
                       <button
                         type="button"
@@ -861,7 +863,7 @@ const ManagerSalesAnalytics = ({ managers, months, activeMonthName, onActiveMont
       </div>
 
       {selectedManager && (
-        <div ref={graphRef} className="rounded-2xl border border-slate-100 bg-white p-6">
+        <div ref={graphRef} className="rounded-2xl border border-slate-100 bg-white p-4 md:p-6">
           <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <h3 className="text-lg font-bold text-slate-800">Динамика продаж: {selectedManager.name}</h3>
@@ -875,7 +877,7 @@ const ManagerSalesAnalytics = ({ managers, months, activeMonthName, onActiveMont
               Скрыть график
             </button>
           </div>
-          <div className="h-[360px] w-full">
+          <div className="h-[300px] w-full md:h-[360px]">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={selectedTrendData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -912,12 +914,12 @@ const ManagerSalesAnalytics = ({ managers, months, activeMonthName, onActiveMont
         </div>
       )}
 
-      <div className="rounded-2xl border border-slate-100 bg-white p-6">
+      <div className="rounded-2xl border border-slate-100 bg-white p-4 md:p-6">
         <div className="mb-6">
           <h3 className="text-lg font-bold text-slate-800">Динамика продаж менеджеров</h3>
           <p className="text-sm text-slate-500">Сравнение продаж по месяцам для всех менеджеров.</p>
         </div>
-        <div className="h-[380px] w-full">
+        <div className="h-[300px] w-full md:h-[380px]">
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={trendData}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -1196,10 +1198,10 @@ const App = () => {
           </div>
         </aside>
         <main className="min-w-0 flex-1">
-        <header className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <header className="mb-6 flex flex-col justify-between gap-4 md:mb-8 md:flex-row md:items-center">
           <div>
-            <h1 className="text-3xl font-black text-slate-900 flex items-center gap-2">
-              <LayoutDashboard className="text-blue-600" />
+            <h1 className="flex items-center gap-2 text-2xl font-black leading-tight text-slate-900 md:text-3xl md:leading-normal">
+              <LayoutDashboard className="shrink-0 text-blue-600" />
               {portalMode === "finances" ? "Финансовый дашборд компании" : "Продажи и аналитика"}
             </h1>
             <p className="text-slate-500 mt-1">
@@ -1208,7 +1210,7 @@ const App = () => {
                 : "Источник продаж: локальный файл брендов"}
             </p>
           </div>
-          <div className="flex items-center gap-3 overflow-x-auto">
+          <div className="flex items-center gap-3 overflow-x-auto pb-1 md:pb-0">
             <button
               type="button"
               onClick={() => setPortalMode(portalMode === "finances" ? "sales" : "finances")}
@@ -1327,13 +1329,13 @@ const App = () => {
           />
         </div>
 
-        <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 min-h-[500px]">
+        <div className="min-h-[500px] rounded-3xl border border-slate-100 bg-white p-3 shadow-sm md:p-8">
           {activeTab === "overview" && (
             <div className="space-y-8 animate-in fade-in duration-500">
               <div className="flex justify-between items-center">
                 <h2 className="text-xl font-bold">Рост бизнеса и эффективность</h2>
               </div>
-              <div className="h-[400px] w-full">
+              <div className="h-[300px] w-full md:h-[400px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={processedData}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -1487,7 +1489,7 @@ const App = () => {
                     </button>
                   )}
                 </div>
-                <div className="h-[360px] w-full">
+                <div className="h-[300px] w-full md:h-[360px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart data={expenseTrendData}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -1543,7 +1545,7 @@ const App = () => {
             <div className="space-y-8 animate-in fade-in duration-500">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <h2 className="text-xl font-bold">Декомпозиция прибыли: {selectedMonth.name}</h2>
-                <div className="flex gap-2">
+                <div className="flex max-w-full gap-2 overflow-x-auto pb-1 md:overflow-visible md:pb-0">
                   {processedData.map((m) => (
                     <button
                       key={m.name}
@@ -1557,7 +1559,7 @@ const App = () => {
                   ))}
                 </div>
               </div>
-              <div className="h-[400px] w-full">
+              <div className="h-[300px] w-full md:h-[400px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={waterfallData} margin={{ top: 20 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -1641,8 +1643,8 @@ const App = () => {
           )}
         </div>
 
-        <div className="mt-8 bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
-          <table className="w-full text-left border-collapse text-sm">
+        <div className="mt-8 overflow-x-auto rounded-3xl border border-slate-100 bg-white shadow-sm">
+          <table className="min-w-[760px] w-full border-collapse text-left text-sm">
             <thead>
               <tr className="bg-slate-50 text-slate-500 uppercase tracking-wider">
                 <th className="px-6 py-4 font-bold">Месяц</th>
@@ -1697,7 +1699,7 @@ const App = () => {
               />
               <Card title="Лучший семинар" value="Данные скоро появятся" subValue="Будет аналитика семинаров" icon={FileText} colorClass="bg-amber-500" />
             </div>
-            <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 min-h-[500px]">
+            <div className="min-h-[500px] rounded-3xl border border-slate-100 bg-white p-3 shadow-sm md:p-8">
               {activeSalesTab === "brands" && (
                 <BrandSalesAnalytics
                   brands={brandSalesData}
