@@ -64,22 +64,22 @@ const BRAND_COLORS = ["#4f46e5", "#06b6d4", "#94a3b8", "#0ea5e9", "#f59e0b", "#2
 const MANAGER_COLORS = ["#2563eb", "#10b981", "#f59e0b", "#8b5cf6"];
 
 const Card = ({ title, value, subValue, icon: Icon, colorClass, children }) => (
-  <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex min-h-[180px] flex-col">
+  <div className="flex min-h-[160px] flex-col rounded-2xl border border-slate-100 bg-white p-3 shadow-sm md:min-h-[180px] md:p-5">
     <div className="space-y-5">
       <div className="flex items-start justify-between gap-4">
-        <div className={`shrink-0 p-3 rounded-xl ${colorClass}`}>
-          <Icon size={24} className="text-white" />
+        <div className={`shrink-0 rounded-xl p-2 md:p-3 ${colorClass}`}>
+          <Icon size={20} className="text-white md:h-6 md:w-6" />
         </div>
         <span className="min-w-0 flex-1 break-words text-right text-[11px] font-bold uppercase leading-snug tracking-wider text-slate-400">
           {title}
         </span>
       </div>
       <div>
-        <h3 className="text-2xl font-bold text-slate-800">{value}</h3>
+        <h3 className="break-words text-xl font-bold text-slate-800 md:text-2xl">{value}</h3>
         <div className="text-sm text-slate-500 mt-1">{subValue}</div>
       </div>
     </div>
-    {children && <div className="mt-auto pt-5">{children}</div>}
+    {children && <div className="mt-auto pt-3 md:pt-5">{children}</div>}
   </div>
 );
 
@@ -202,6 +202,7 @@ const BrandSalesAnalytics = ({
   const [highlightedBrandName, setHighlightedBrandName] = useState("");
   const [chartLag, setChartLag] = useState(0);
   const [selectedBrandManagerName, setSelectedBrandManagerName] = useState("");
+  const [isPhone, setIsPhone] = useState(false);
   const activeMonth = months.find((month) => month.name === activeMonthName) || latestMonth || months[months.length - 1];
   const activeRevenue = activeMonth?.revenue || 0;
   const selectedBrand = brands.find((brand) => brand.name === selectedBrandName);
@@ -227,6 +228,15 @@ const BrandSalesAnalytics = ({
       onActiveMonthChange(latestMonth?.name || months[months.length - 1].name);
     }
   }, [activeMonthName, latestMonth?.name, months, onActiveMonthChange]);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 767px)");
+    const updatePhoneMode = () => setIsPhone(mediaQuery.matches);
+
+    updatePhoneMode();
+    mediaQuery.addEventListener("change", updatePhoneMode);
+    return () => mediaQuery.removeEventListener("change", updatePhoneMode);
+  }, []);
 
   useEffect(() => {
     if (selectedBrandName) {
@@ -370,15 +380,15 @@ const BrandSalesAnalytics = ({
               <p className="text-sm text-slate-500">Доля считается от общей выручки месяца.</p>
             </div>
           </div>
-          <div className="h-[320px] md:h-[420px]">
+          <div className="h-[240px] md:h-[420px]">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
                   data={chartData}
                   cx="50%"
                   cy="50%"
-                  innerRadius={105}
-                  outerRadius={180}
+                  innerRadius={isPhone ? 58 : 105}
+                  outerRadius={isPhone ? 100 : 180}
                   paddingAngle={3}
                   dataKey="latestFact"
                   onClick={(entry) => toggleBrand(entry.name)}
@@ -1268,7 +1278,7 @@ const App = () => {
 
         {portalMode === "finances" ? (
           <>
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-5 mb-8">
+        <div className={`${activeTab === "overview" ? "grid" : "hidden md:grid"} mb-8 grid-cols-2 gap-3 [&>*:last-child]:col-span-2 md:grid-cols-5 md:gap-5 md:[&>*:last-child]:col-span-1`}>
           <Card
             title={`Выручка (${revenueCardMonth.name})`}
             value={formatMillion(revenueCardMonth.revenue)}
@@ -1674,31 +1684,39 @@ const App = () => {
           </>
         ) : (
           <>
-            <div className="grid grid-cols-1 gap-5 mb-8 md:grid-cols-3">
-              <Card
-                title={`Лучший продавец (${activeManagerMonth.name})`}
-                value={bestManager?.name || "Данные скоро появятся"}
-                subValue={
-                  bestManager
-                    ? `${formatCurrency(bestManager.sales)} · ${bestManager.revenueShare.toFixed(1)}% от выручки`
-                    : "Подключим рейтинг продавцов"
-                }
-                icon={Trophy}
-                colorClass="bg-blue-500"
-              />
-              <Card
-                title={`Лучший бренд (${activeBrandMonth.name})`}
-                value={bestBrand?.name || "Данные скоро появятся"}
-                subValue={
-                  bestBrand
-                    ? `${formatCurrency(bestBrand.sales)} · ${bestBrand.revenueShare.toFixed(1)}% от выручки`
-                    : "Будет рейтинг брендов"
-                }
-                icon={Tags}
-                colorClass="bg-emerald-500"
-              />
-              <Card title="Лучший семинар" value="Данные скоро появятся" subValue="Будет аналитика семинаров" icon={FileText} colorClass="bg-amber-500" />
-            </div>
+            {activeSalesTab !== "plan" && (
+              <div className="mb-8 grid grid-cols-1 gap-5 md:grid-cols-3">
+                {activeSalesTab === "managers" && (
+                  <Card
+                    title={`Лучший продавец (${activeManagerMonth.name})`}
+                    value={bestManager?.name || "Данные скоро появятся"}
+                    subValue={
+                      bestManager
+                        ? `${formatCurrency(bestManager.sales)} · ${bestManager.revenueShare.toFixed(1)}% от выручки`
+                        : "Подключим рейтинг продавцов"
+                    }
+                    icon={Trophy}
+                    colorClass="bg-blue-500"
+                  />
+                )}
+                {activeSalesTab === "brands" && (
+                  <Card
+                    title={`Лучший бренд (${activeBrandMonth.name})`}
+                    value={bestBrand?.name || "Данные скоро появятся"}
+                    subValue={
+                      bestBrand
+                        ? `${formatCurrency(bestBrand.sales)} · ${bestBrand.revenueShare.toFixed(1)}% от выручки`
+                        : "Будет рейтинг брендов"
+                    }
+                    icon={Tags}
+                    colorClass="bg-emerald-500"
+                  />
+                )}
+                {activeSalesTab === "seminars" && (
+                  <Card title="Лучший семинар" value="Данные скоро появятся" subValue="Будет аналитика семинаров" icon={FileText} colorClass="bg-amber-500" />
+                )}
+              </div>
+            )}
             <div className="min-h-[500px] rounded-3xl border border-slate-100 bg-white p-3 shadow-sm md:p-8">
               {activeSalesTab === "brands" && (
                 <BrandSalesAnalytics
