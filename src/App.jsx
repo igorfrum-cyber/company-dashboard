@@ -1238,7 +1238,7 @@ const App = () => {
                 : "Источник продаж: локальный файл брендов"}
             </p>
           </div>
-          <div className="flex items-center gap-3 overflow-x-auto pb-1 md:pb-0">
+          <div className="flex w-full flex-wrap items-center gap-3 pb-1 md:pb-0 xl:w-auto xl:flex-nowrap">
             <button
               type="button"
               onClick={() => setPortalMode(portalMode === "finances" ? "sales" : "finances")}
@@ -1247,7 +1247,7 @@ const App = () => {
               {portalMode === "finances" ? <ShoppingBag size={16} /> : <LayoutDashboard size={16} />}
               {portalMode === "finances" ? "Продажи" : "Финансы"}
             </button>
-            <div className="flex bg-white p-1 rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
+            <div className="flex min-w-0 flex-1 flex-wrap rounded-xl border border-slate-200 bg-white p-1 shadow-sm xl:flex-nowrap">
               {(portalMode === "finances" ? FINANCE_TABS : SALES_TABS).map((tab) => {
                 const isActive = portalMode === "finances" ? activeTab === tab.id : activeSalesTab === tab.id;
                 const handleClick = () => {
@@ -1262,7 +1262,7 @@ const App = () => {
                   <button
                     key={tab.id}
                     onClick={handleClick}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all whitespace-nowrap ${
+                    className={`flex items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-semibold transition-all xl:px-4 ${
                       isActive ? "bg-blue-600 text-white shadow-md" : "text-slate-600 hover:bg-slate-50"
                     }`}
                   >
