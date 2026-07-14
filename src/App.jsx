@@ -32,19 +32,30 @@ import {
   Search,
 } from "lucide-react";
 import { FALLBACK_DATA } from "./data/fallbackData";
-import { BRAND_SALES_DATA } from "./data/brandSalesData";
-import { MANAGER_SALES_DATA } from "./data/managerSalesData";
+import { BRAND_SALES_BY_CITY } from "./data/brandSalesData";
+import { MANAGER_SALES_BY_CITY } from "./data/managerSalesData";
 import { loadDashboardDataFromGoogleSheets } from "./services/googleSheets";
 import { OPEX_COLORS, TAX_COLORS } from "./utils/chartColors";
 import { formatCurrency, formatMillion, formatRevenueShare } from "./utils/formatters";
 
-const SHEET_ID = import.meta.env.VITE_GOOGLE_SHEET_ID || "";
+const TYUMEN_SHEET_ID = import.meta.env.VITE_GOOGLE_SHEET_ID || "";
+const SURGUT_SHEET_ID = import.meta.env.VITE_SURGUT_GOOGLE_SHEET_ID || "1IxJDXc1HDzanQQdPUVG13whKkcnv71mA3GxKw1HIndc";
+
+const FINANCE_SHEET_IDS = {
+  tyumen: TYUMEN_SHEET_ID,
+  surgut: SURGUT_SHEET_ID,
+};
+
+const FINANCE_MONTH_LIMITS = {
+  tyumen: "Май",
+  surgut: "Май",
+};
 
 const BUSINESS_UNITS = [
-  { id: "company", label: "ООО Кристайл", enabled: false },
-  { id: "tyumen", label: "Тюмень", enabled: true },
-  { id: "surgut", label: "Сургут", enabled: false },
-  { id: "novy-urengoy", label: "Новый Уренгой", enabled: false },
+  { id: "company", label: "ООО Кристайл", financeEnabled: false, salesEnabled: true },
+  { id: "tyumen", label: "Тюмень", financeEnabled: true, salesEnabled: true },
+  { id: "surgut", label: "Сургут", financeEnabled: true, salesEnabled: true },
+  { id: "novy-urengoy", label: "Новый Уренгой", financeEnabled: false, salesEnabled: true },
 ];
 
 const FINANCE_TABS = [
@@ -170,6 +181,22 @@ const BRAND_MONTH_ORDER = [
   "Декабрь",
 ];
 
+const limitMonthsByName = (items, maxMonthName) => {
+  if (!maxMonthName) {
+    return items;
+  }
+
+  const maxIndex = BRAND_MONTH_ORDER.indexOf(maxMonthName);
+  if (maxIndex === -1) {
+    return items;
+  }
+
+  return items.filter((item) => {
+    const monthIndex = BRAND_MONTH_ORDER.indexOf(item.name);
+    return monthIndex !== -1 && monthIndex <= maxIndex;
+  });
+};
+
 const BRAND_MANAGER_FILTERS = ["", "Красина", "Травина", "Тарасевич"];
 
 const formatOptionalCurrency = (value) => (value > 0 ? formatCurrency(value) : "—");
@@ -195,6 +222,7 @@ const BrandSalesAnalytics = ({
   expandedBrandName,
   onSelectBrand,
   onToggleExpandedBrand,
+  showManagerFilter = true,
 }) => {
   const graphRef = useRef(null);
   const lastScrollYRef = useRef(0);
@@ -206,7 +234,7 @@ const BrandSalesAnalytics = ({
   const [isPhone, setIsPhone] = useState(false);
   const [brandSearchQuery, setBrandSearchQuery] = useState("");
   const activeMonth = months.find((month) => month.name === activeMonthName) || latestMonth || months[months.length - 1];
-  const activeRevenue = activeMonth?.revenue || 0;
+  const financeRevenue = activeMonth?.revenue || 0;
   const selectedBrand = brands.find((brand) => brand.name === selectedBrandName);
   const toggleBrand = (brandName) => {
     setHighlightedBrandName(highlightedBrandName === brandName ? "" : brandName);
@@ -245,6 +273,12 @@ const BrandSalesAnalytics = ({
       graphRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   }, [selectedBrandName]);
+
+  useEffect(() => {
+    if (!showManagerFilter && selectedBrandManagerName) {
+      setSelectedBrandManagerName("");
+    }
+  }, [selectedBrandManagerName, showManagerFilter]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -326,11 +360,13 @@ const BrandSalesAnalytics = ({
     }))
     .sort((a, b) => b.latestFact - a.latestFact);
 
+  const activeSalesTotal = rows.reduce((sum, brand) => sum + (brand.latestFact || 0), 0);
+  const activeRevenue = financeRevenue || activeSalesTotal;
   const chartData = rows.filter((brand) => brand.latestFact > 0);
   const filteredRows = rows.filter((brand) => brand.name.toLowerCase().includes(brandSearchQuery.trim().toLowerCase()));
   const trendData = selectedBrand
     ? months.map((month) => {
-        const value = selectedBrandManagerName
+        const value = showManagerFilter && selectedBrandManagerName
           ? selectedBrand.managerMonthlySales?.[selectedBrandManagerName]?.[month.name] || 0
           : getBrandMonthSales(selectedBrand, month.name);
         return {
@@ -505,22 +541,24 @@ const BrandSalesAnalytics = ({
               Скрыть график
             </button>
           </div>
-          <div className="mb-6 flex w-full flex-nowrap gap-3 overflow-x-auto pb-1">
-            {BRAND_MANAGER_FILTERS.map((managerName) => (
-              <button
-                key={managerName || "all"}
-                type="button"
-                onClick={() => setSelectedBrandManagerName(managerName)}
-                className={`shrink-0 rounded-full px-5 py-2 text-sm font-bold transition-colors ${
-                  selectedBrandManagerName === managerName
-                    ? "bg-blue-600 text-white shadow-sm"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                }`}
-              >
-                {managerName || "Все менеджеры"}
-              </button>
-            ))}
-          </div>
+          {showManagerFilter && (
+            <div className="mb-6 flex w-full flex-nowrap gap-3 overflow-x-auto pb-1">
+              {BRAND_MANAGER_FILTERS.map((managerName) => (
+                <button
+                  key={managerName || "all"}
+                  type="button"
+                  onClick={() => setSelectedBrandManagerName(managerName)}
+                  className={`shrink-0 rounded-full px-5 py-2 text-sm font-bold transition-colors ${
+                    selectedBrandManagerName === managerName
+                      ? "bg-blue-600 text-white shadow-sm"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  {managerName || "Все менеджеры"}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="h-[300px] w-full md:h-[360px]">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={trendData}>
@@ -981,10 +1019,12 @@ const App = () => {
   const [portalMode, setPortalMode] = useState("finances");
   const [activeTab, setActiveTab] = useState("overview");
   const [activeSalesTab, setActiveSalesTab] = useState("brands");
-  const [activeBusinessUnit] = useState("tyumen");
+  const [activeBusinessUnit, setActiveBusinessUnit] = useState("tyumen");
+  const activeBusinessLabel = BUSINESS_UNITS.find((unit) => unit.id === activeBusinessUnit)?.label || "Тюмень";
+  const activeFinanceSheetId = FINANCE_SHEET_IDS[activeBusinessUnit] || "";
   const [processedData, setProcessedData] = useState(FALLBACK_DATA);
-  const [brandSalesData] = useState(BRAND_SALES_DATA);
-  const [managerSalesData] = useState(MANAGER_SALES_DATA);
+  const brandSalesData = useMemo(() => BRAND_SALES_BY_CITY[activeBusinessUnit] || [], [activeBusinessUnit]);
+  const managerSalesData = useMemo(() => MANAGER_SALES_BY_CITY[activeBusinessUnit] || [], [activeBusinessUnit]);
   const [selectedBrandName, setSelectedBrandName] = useState("");
   const [expandedBrandName, setExpandedBrandName] = useState("");
   const [activeBrandMonthName, setActiveBrandMonthName] = useState("");
@@ -996,13 +1036,21 @@ const App = () => {
     expenses: FALLBACK_DATA[FALLBACK_DATA.length - 1].name,
   });
   const [expenseTrendSelection, setExpenseTrendSelection] = useState(null);
-  const [loading, setLoading] = useState(Boolean(SHEET_ID));
+  const [loading, setLoading] = useState(Boolean(activeFinanceSheetId));
   const [error, setError] = useState("");
-  const [sourceMode, setSourceMode] = useState(SHEET_ID ? "google" : "fallback");
+  const [sourceMode, setSourceMode] = useState(activeFinanceSheetId ? "google" : "fallback");
 
   useEffect(() => {
     const run = async () => {
-      if (!SHEET_ID) {
+      if (!activeFinanceSheetId) {
+        const fallbackLatestMonth = FALLBACK_DATA[FALLBACK_DATA.length - 1];
+        setProcessedData(FALLBACK_DATA);
+        setSelectedMonth(fallbackLatestMonth);
+        setCardMonths({
+          revenue: fallbackLatestMonth.name,
+          profit: fallbackLatestMonth.name,
+          expenses: fallbackLatestMonth.name,
+        });
         setSourceMode("fallback");
         return;
       }
@@ -1010,9 +1058,12 @@ const App = () => {
       setLoading(true);
       setError("");
       try {
-        const data = await loadDashboardDataFromGoogleSheets(SHEET_ID);
+        const data = limitMonthsByName(
+          await loadDashboardDataFromGoogleSheets(activeFinanceSheetId),
+          FINANCE_MONTH_LIMITS[activeBusinessUnit],
+        );
         if (!data.length) {
-          throw new Error("В Google Sheets не найдено заполненных месяцев (выручка > 0).");
+          throw new Error(`В Google Sheets для ${activeBusinessLabel} не найдено заполненных месяцев (выручка > 0).`);
         }
         setProcessedData(data);
         setSelectedMonth(data[data.length - 1]);
@@ -1023,7 +1074,14 @@ const App = () => {
         });
         setSourceMode("google");
       } catch (loadError) {
-        setError(loadError.message || "Не удалось загрузить данные из Google Sheets.");
+        setProcessedData(FALLBACK_DATA);
+        setSelectedMonth(FALLBACK_DATA[FALLBACK_DATA.length - 1]);
+        setCardMonths({
+          revenue: FALLBACK_DATA[FALLBACK_DATA.length - 1].name,
+          profit: FALLBACK_DATA[FALLBACK_DATA.length - 1].name,
+          expenses: FALLBACK_DATA[FALLBACK_DATA.length - 1].name,
+        });
+        setError(loadError.message || `Не удалось загрузить данные из Google Sheets для ${activeBusinessLabel}.`);
         setSourceMode("fallback");
       } finally {
         setLoading(false);
@@ -1031,7 +1089,7 @@ const App = () => {
     };
 
     run();
-  }, []);
+  }, [activeBusinessLabel, activeBusinessUnit, activeFinanceSheetId]);
 
   const firstMonth = processedData[0];
   const latestMonth = processedData[processedData.length - 1];
@@ -1040,7 +1098,13 @@ const App = () => {
       brandSalesData.some((brand) => Object.prototype.hasOwnProperty.call(brand.monthlySales || {}, monthName)),
     );
 
-    return availableMonthNames.map((monthName) => processedData.find((month) => month.name === monthName) || { name: monthName, revenue: 0 });
+    return availableMonthNames.map((monthName) => {
+      const financeMonth = processedData.find((month) => month.name === monthName);
+      const salesTotal = brandSalesData.reduce((sum, brand) => sum + getBrandMonthSales(brand, monthName), 0);
+      const revenue = financeMonth?.revenue || salesTotal;
+
+      return { ...(financeMonth || { name: monthName }), revenue };
+    });
   }, [brandSalesData, processedData]);
   const latestBrandMonth = brandMonths[brandMonths.length - 1] || latestMonth;
   const activeBrandMonth = brandMonths.find((month) => month.name === activeBrandMonthName) || latestBrandMonth;
@@ -1049,7 +1113,13 @@ const App = () => {
       managerSalesData.some((manager) => Object.prototype.hasOwnProperty.call(manager.monthlySales || {}, monthName)),
     );
 
-    return availableMonthNames.map((monthName) => processedData.find((month) => month.name === monthName) || { name: monthName, revenue: 0 });
+    return availableMonthNames.map((monthName) => {
+      const financeMonth = processedData.find((month) => month.name === monthName);
+      const salesTotal = managerSalesData.reduce((sum, manager) => sum + getBrandMonthSales(manager, monthName), 0);
+      const revenue = financeMonth?.revenue || salesTotal;
+
+      return { ...(financeMonth || { name: monthName }), revenue };
+    });
   }, [managerSalesData, processedData]);
   const latestManagerMonth = managerMonths[managerMonths.length - 1] || latestMonth;
   const activeManagerMonth = managerMonths.find((month) => month.name === activeManagerMonthName) || latestManagerMonth;
@@ -1111,6 +1181,11 @@ const App = () => {
       setActiveManagerMonthName(latestManagerMonth.name);
     }
   }, [activeManagerMonthName, latestManagerMonth.name, managerMonths]);
+
+  useEffect(() => {
+    setSelectedBrandName("");
+    setExpandedBrandName("");
+  }, [activeBusinessUnit]);
 
   const revenueGrowth = firstMonth?.revenue
     ? ((latestMonth.revenue / firstMonth.revenue - 1) * 100).toFixed(0)
@@ -1199,6 +1274,17 @@ const App = () => {
     ? `Динамика: ${expenseTrendSelection.name}`
     : "Динамика операционных и финансовых расходов";
   const activeSalesTabLabel = SALES_TABS.find((tab) => tab.id === activeSalesTab)?.label || "Бренды";
+  const switchPortalMode = () => {
+    if (portalMode === "finances") {
+      setPortalMode("sales");
+      return;
+    }
+
+    if (!FINANCE_SHEET_IDS[activeBusinessUnit]) {
+      setActiveBusinessUnit("tyumen");
+    }
+    setPortalMode("finances");
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 px-3 py-4 font-sans text-slate-900 md:px-5 md:py-6">
@@ -1207,16 +1293,24 @@ const App = () => {
           <div className="flex gap-2 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm lg:flex-col lg:overflow-visible">
             {BUSINESS_UNITS.map((unit) => {
               const isActive = activeBusinessUnit === unit.id;
+              const isEnabled = portalMode === "finances" ? unit.financeEnabled : unit.salesEnabled;
 
               return (
                 <button
                   key={unit.id}
                   type="button"
-                  disabled={!unit.enabled}
+                  disabled={!isEnabled}
+                  onClick={() => {
+                    if (isEnabled) {
+                      setActiveBusinessUnit(unit.id);
+                    }
+                  }}
                   className={`whitespace-nowrap rounded-xl px-4 py-3 text-left text-sm font-bold transition-colors ${
                     isActive
                       ? "bg-blue-600 text-white shadow-sm"
-                      : "cursor-not-allowed bg-slate-100 text-slate-400"
+                      : isEnabled
+                        ? "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                        : "cursor-not-allowed bg-slate-100 text-slate-400"
                   }`}
                 >
                   {unit.label}
@@ -1234,14 +1328,14 @@ const App = () => {
             </h1>
             <p className="text-slate-500 mt-1">
               {portalMode === "finances"
-                ? `Источник: ${sourceMode === "google" ? "Google Sheets" : "Демо-данные"}`
-                : "Источник продаж: локальный файл брендов"}
+                ? `${activeBusinessLabel}. Источник: ${sourceMode === "google" ? "Google Sheets" : "Демо-данные"}`
+                : `${activeBusinessLabel}. Источник продаж: локальный файл брендов`}
             </p>
           </div>
           <div className="flex w-full flex-wrap items-center gap-3 pb-1 md:pb-0 xl:w-auto xl:flex-nowrap">
             <button
               type="button"
-              onClick={() => setPortalMode(portalMode === "finances" ? "sales" : "finances")}
+              onClick={switchPortalMode}
               className="flex items-center gap-2 whitespace-nowrap rounded-xl bg-white px-4 py-3 text-sm font-bold text-slate-700 shadow-sm ring-1 ring-slate-200 transition-colors hover:bg-slate-50"
             >
               {portalMode === "finances" ? <ShoppingBag size={16} /> : <LayoutDashboard size={16} />}
@@ -1277,7 +1371,7 @@ const App = () => {
 
         {portalMode === "finances" && loading && (
           <div className="mb-6 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-blue-700 text-sm">
-            Загружаю данные из Google Sheets...
+            Загружаю данные из Google Sheets для {activeBusinessLabel}...
           </div>
         )}
 
@@ -1287,10 +1381,9 @@ const App = () => {
           </div>
         )}
 
-        {portalMode === "finances" && !SHEET_ID && (
+        {portalMode === "finances" && !activeFinanceSheetId && (
           <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-900 text-sm">
-            Чтобы включить автообновление: добавьте в Vercel переменную{" "}
-            <code className="font-mono">VITE_GOOGLE_SHEET_ID</code>.
+            Для {activeBusinessLabel} пока не указан ID Google-таблицы.
           </div>
         )}
 
@@ -1747,6 +1840,7 @@ const App = () => {
                   expandedBrandName={expandedBrandName}
                   onSelectBrand={setSelectedBrandName}
                   onToggleExpandedBrand={setExpandedBrandName}
+                  showManagerFilter={activeBusinessUnit === "tyumen"}
                 />
               )}
               {activeSalesTab === "managers" && (
