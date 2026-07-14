@@ -1274,6 +1274,14 @@ const App = () => {
     ? `Динамика: ${expenseTrendSelection.name}`
     : "Динамика операционных и финансовых расходов";
   const activeSalesTabLabel = SALES_TABS.find((tab) => tab.id === activeSalesTab)?.label || "Бренды";
+  const selectBusinessUnit = (unit) => {
+    setActiveBusinessUnit(unit.id);
+
+    if (portalMode === "finances" && !unit.financeEnabled) {
+      setPortalMode("sales");
+      setActiveSalesTab("brands");
+    }
+  };
   const switchPortalMode = () => {
     if (portalMode === "finances") {
       setPortalMode("sales");
@@ -1293,7 +1301,7 @@ const App = () => {
           <div className="flex gap-2 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm lg:flex-col lg:overflow-visible">
             {BUSINESS_UNITS.map((unit) => {
               const isActive = activeBusinessUnit === unit.id;
-              const isEnabled = portalMode === "finances" ? unit.financeEnabled : unit.salesEnabled;
+              const isEnabled = unit.financeEnabled || unit.salesEnabled;
 
               return (
                 <button
@@ -1302,7 +1310,7 @@ const App = () => {
                   disabled={!isEnabled}
                   onClick={() => {
                     if (isEnabled) {
-                      setActiveBusinessUnit(unit.id);
+                      selectBusinessUnit(unit);
                     }
                   }}
                   className={`whitespace-nowrap rounded-xl px-4 py-3 text-left text-sm font-bold transition-colors ${
