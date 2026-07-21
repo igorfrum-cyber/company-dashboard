@@ -29,7 +29,14 @@ const toNumber = (value) => {
     if (!trimmed || trimmed.includes("#DIV/0")) {
       return 0;
     }
-    const normalized = trimmed.replace(/\s/g, "").replace(",", ".");
+    const compact = trimmed.replace(/\s/g, "").replace(/[₽%]/g, "");
+    const commaCount = (compact.match(/,/g) || []).length;
+    const normalized =
+      compact.includes(".") && compact.includes(",")
+        ? compact.replace(/,/g, "")
+        : commaCount > 1
+          ? compact.replace(/,/g, "")
+          : compact.replace(",", ".");
     const parsed = Number(normalized);
     return Number.isFinite(parsed) ? parsed : 0;
   }

@@ -47,8 +47,8 @@ const FINANCE_SHEET_IDS = {
 };
 
 const FINANCE_MONTH_LIMITS = {
-  tyumen: "Май",
-  surgut: "Май",
+  tyumen: "Июнь",
+  surgut: "Июнь",
 };
 
 const BUSINESS_UNITS = [
@@ -1159,6 +1159,18 @@ const App = () => {
       })
       .sort((a, b) => b.sales - a.sales)[0];
   }, [activeManagerMonth, managerSalesData]);
+  const activeSalesMonthName =
+    activeSalesTab === "managers" && activeManagerMonth
+      ? activeManagerMonth.name
+      : activeBrandMonth?.name || latestMonth?.name || "";
+  const totalSalesForActiveUnit = useMemo(
+    () =>
+      brandSalesData.reduce(
+        (sum, brand) => sum + getBrandMonthSales(brand, activeSalesMonthName),
+        0,
+      ),
+    [activeSalesMonthName, brandSalesData],
+  );
 
   useEffect(() => {
     if (!brandMonths.length) {
@@ -1804,7 +1816,14 @@ const App = () => {
         ) : (
           <>
             {activeSalesTab !== "plan" && (
-              <div className="mb-8 grid grid-cols-1 gap-5 md:grid-cols-3">
+              <div className="mb-8 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+                <Card
+                  title={`Продажи (${activeSalesMonthName})`}
+                  value={formatCurrency(totalSalesForActiveUnit)}
+                  subValue={`Общая сумма: ${activeBusinessLabel}`}
+                  icon={ShoppingBag}
+                  colorClass="bg-blue-500"
+                />
                 {activeSalesTab === "managers" && (
                   <Card
                     title={`Лучший продавец (${activeManagerMonth.name})`}
