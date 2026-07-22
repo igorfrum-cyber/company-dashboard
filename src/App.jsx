@@ -38,7 +38,7 @@ import { loadDashboardDataFromGoogleSheets } from "./services/googleSheets";
 import { OPEX_COLORS, TAX_COLORS } from "./utils/chartColors";
 import { formatCurrency, formatMillion, formatRevenueShare } from "./utils/formatters";
 
-const TYUMEN_SHEET_ID = import.meta.env.VITE_GOOGLE_SHEET_ID || "";
+const TYUMEN_SHEET_ID = import.meta.env.VITE_GOOGLE_SHEET_ID || "1XCvgjbz8_QefFywsz54uVlD1EMguOcQoKtoLZU-sNQA";
 const SURGUT_SHEET_ID = import.meta.env.VITE_SURGUT_GOOGLE_SHEET_ID || "1IxJDXc1HDzanQQdPUVG13whKkcnv71mA3GxKw1HIndc";
 
 const FINANCE_SHEET_IDS = {
