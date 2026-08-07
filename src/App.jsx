@@ -359,12 +359,16 @@ const BrandSalesAnalytics = ({
   }, [selectedBrandName]);
 
   const rows = brands
-    .map((brand, index) => ({
-      ...brand,
-      color: BRAND_COLORS[index % BRAND_COLORS.length],
-      latestFact: getBrandMonthSales(brand, activeMonth.name) || getLatestBrandSales(brand, months),
-      salesPlan: getBrandMonthPlan(brand, activeMonth.name),
-    }))
+    .map((brand, index) => {
+      const hasActiveMonth = Object.prototype.hasOwnProperty.call(brand.monthlySales || {}, activeMonth.name);
+
+      return {
+        ...brand,
+        color: BRAND_COLORS[index % BRAND_COLORS.length],
+        latestFact: hasActiveMonth ? getBrandMonthSales(brand, activeMonth.name) : getLatestBrandSales(brand, months),
+        salesPlan: getBrandMonthPlan(brand, activeMonth.name),
+      };
+    })
     .sort((a, b) => b.latestFact - a.latestFact);
 
   const activeSalesTotal = rows.reduce((sum, brand) => sum + (brand.latestFact || 0), 0);
