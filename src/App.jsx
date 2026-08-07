@@ -51,6 +51,12 @@ const FINANCE_MONTH_LIMITS = {
   surgut: "Июнь",
 };
 
+const SALES_REVENUE_OVERRIDES = {
+  tyumen: {
+    Июль: 17332195,
+  },
+};
+
 const BUSINESS_UNITS = [
   { id: "company", label: "ООО Кристайл", financeEnabled: false, salesEnabled: true },
   { id: "tyumen", label: "Тюмень", financeEnabled: true, salesEnabled: true },
@@ -165,6 +171,7 @@ const PlaceholderChart = ({ title }) => (
 
 const getBrandMonthSales = (brand, monthName) => brand.monthlySales?.[monthName] || 0;
 const getBrandMonthPlan = (brand, monthName) => brand.monthlySalesPlan?.[monthName] || brand.salesPlan || 0;
+const getSalesRevenueOverride = (businessUnit, monthName) => SALES_REVENUE_OVERRIDES[businessUnit]?.[monthName] || 0;
 
 const BRAND_MONTH_ORDER = [
   "Январь",
@@ -1100,12 +1107,13 @@ const App = () => {
 
     return availableMonthNames.map((monthName) => {
       const financeMonth = processedData.find((month) => month.name === monthName);
+      const revenueOverride = getSalesRevenueOverride(activeBusinessUnit, monthName);
       const salesTotal = brandSalesData.reduce((sum, brand) => sum + getBrandMonthSales(brand, monthName), 0);
-      const revenue = financeMonth?.revenue || salesTotal;
+      const revenue = revenueOverride || financeMonth?.revenue || salesTotal;
 
       return { ...(financeMonth || { name: monthName }), revenue };
     });
-  }, [brandSalesData, processedData]);
+  }, [activeBusinessUnit, brandSalesData, processedData]);
   const latestBrandMonth = brandMonths[brandMonths.length - 1] || latestMonth;
   const activeBrandMonth = brandMonths.find((month) => month.name === activeBrandMonthName) || latestBrandMonth;
   const managerMonths = useMemo(() => {
@@ -1115,12 +1123,13 @@ const App = () => {
 
     return availableMonthNames.map((monthName) => {
       const financeMonth = processedData.find((month) => month.name === monthName);
+      const revenueOverride = getSalesRevenueOverride(activeBusinessUnit, monthName);
       const salesTotal = managerSalesData.reduce((sum, manager) => sum + getBrandMonthSales(manager, monthName), 0);
-      const revenue = financeMonth?.revenue || salesTotal;
+      const revenue = revenueOverride || financeMonth?.revenue || salesTotal;
 
       return { ...(financeMonth || { name: monthName }), revenue };
     });
-  }, [managerSalesData, processedData]);
+  }, [activeBusinessUnit, managerSalesData, processedData]);
   const latestManagerMonth = managerMonths[managerMonths.length - 1] || latestMonth;
   const activeManagerMonth = managerMonths.find((month) => month.name === activeManagerMonthName) || latestManagerMonth;
   const bestBrand = useMemo(() => {
@@ -1163,14 +1172,17 @@ const App = () => {
     activeSalesTab === "managers" && activeManagerMonth
       ? activeManagerMonth.name
       : activeBrandMonth?.name || latestMonth?.name || "";
-  const totalSalesForActiveUnit = useMemo(
-    () =>
-      brandSalesData.reduce(
-        (sum, brand) => sum + getBrandMonthSales(brand, activeSalesMonthName),
-        0,
-      ),
-    [activeSalesMonthName, brandSalesData],
-  );
+  const totalSalesForActiveUnit = useMemo(() => {
+    const revenueOverride = getSalesRevenueOverride(activeBusinessUnit, activeSalesMonthName);
+    if (revenueOverride) {
+      return revenueOverride;
+    }
+
+    return brandSalesData.reduce(
+      (sum, brand) => sum + getBrandMonthSales(brand, activeSalesMonthName),
+      0,
+    );
+  }, [activeBusinessUnit, activeSalesMonthName, brandSalesData]);
 
   useEffect(() => {
     if (!brandMonths.length) {
