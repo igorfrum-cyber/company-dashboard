@@ -31,36 +31,20 @@ import {
   Users,
   Search,
 } from "lucide-react";
-import { FALLBACK_DATA } from "./data/fallbackData";
-import { BRAND_SALES_BY_CITY } from "./data/brandSalesData";
-import { MANAGER_SALES_BY_CITY } from "./data/managerSalesData";
-import { loadDashboardDataFromGoogleSheets } from "./services/googleSheets";
+import importedReports from "./data/importedReports.json";
 import { OPEX_COLORS, TAX_COLORS } from "./utils/chartColors";
 import { formatCurrency, formatMillion, formatRevenueShare } from "./utils/formatters";
 
-const TYUMEN_SHEET_ID = import.meta.env.VITE_GOOGLE_SHEET_ID || "1XCvgjbz8_QefFywsz54uVlD1EMguOcQoKtoLZU-sNQA";
-const SURGUT_SHEET_ID = import.meta.env.VITE_SURGUT_GOOGLE_SHEET_ID || "1IxJDXc1HDzanQQdPUVG13whKkcnv71mA3GxKw1HIndc";
-
-const FINANCE_SHEET_IDS = {
-  tyumen: TYUMEN_SHEET_ID,
-  surgut: SURGUT_SHEET_ID,
-};
-
-const FINANCE_MONTH_LIMITS = {
-  tyumen: "Июнь",
-  surgut: "Июнь",
-};
-
-const SALES_REVENUE_OVERRIDES = {
-  tyumen: {
-    Июль: 17332195,
-  },
-};
+const BRAND_SALES_BY_CITY = importedReports.brands;
+const MANAGER_SALES_BY_CITY = importedReports.managers;
+const SEMINAR_DATA_BY_CITY = importedReports.seminars;
+const SALES_REVENUE_OVERRIDES = importedReports.totals;
 
 const BUSINESS_UNITS = [
   { id: "company", label: "ООО Кристайл", financeEnabled: false, salesEnabled: true },
   { id: "tyumen", label: "Тюмень", financeEnabled: true, salesEnabled: true },
   { id: "surgut", label: "Сургут", financeEnabled: true, salesEnabled: true },
+  { id: "nizhnevartovsk", label: "Нижневартовск", financeEnabled: false, salesEnabled: true },
   { id: "novy-urengoy", label: "Новый Уренгой", financeEnabled: false, salesEnabled: true },
 ];
 
@@ -80,6 +64,7 @@ const SALES_TABS = [
 
 const BRAND_COLORS = ["#4f46e5", "#06b6d4", "#94a3b8", "#0ea5e9", "#f59e0b", "#22c55e", "#64748b", "#8b5cf6"];
 const MANAGER_COLORS = ["#2563eb", "#10b981", "#f59e0b", "#8b5cf6"];
+const SEMINAR_COLORS = ["#f59e0b", "#10b981", "#4f46e5", "#06b6d4", "#8b5cf6", "#64748b"];
 
 const Card = ({ title, value, subValue, icon: Icon, colorClass, children }) => (
   <div className="flex min-h-[160px] flex-col rounded-2xl border border-slate-100 bg-white p-3 shadow-sm md:min-h-[180px] md:p-5">
@@ -207,6 +192,13 @@ const limitMonthsByName = (items, maxMonthName) => {
 const BRAND_MANAGER_FILTERS = ["", "Красина", "Травина", "Тарасевич"];
 
 const formatOptionalCurrency = (value) => (value > 0 ? formatCurrency(value) : "—");
+const formatPercent = (value) => `${Number(value || 0).toFixed(1)}%`;
+const formatDateRu = (value) =>
+  new Intl.DateTimeFormat("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(new Date(value));
 
 const getLatestBrandSales = (brand, months) => {
   for (let i = months.length - 1; i >= 0; i -= 1) {
@@ -818,7 +810,21 @@ const ManagerSalesAnalytics = ({ managers, months, activeMonthName, onActiveMont
                     />
                   ))}
                 </Pie>
-                <Tooltip formatter={(value) => [formatCurrency(value), "Продажи"]} />
+                <Tooltip
+                  content={({ active, payload }) => {
+                    if (!active || !payload?.length) {
+                      return null;
+                    }
+
+                    const manager = payload[0]?.payload;
+                    return (
+                      <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-xl">
+                        <div className="font-black text-slate-800">{manager.name}</div>
+                        <div className="mt-1 text-sm font-bold text-blue-600">Продажи: {formatCurrency(manager.sales)}</div>
+                      </div>
+                    );
+                  }}
+                />
               </PieChart>
             </ResponsiveContainer>
           </div>
@@ -1026,81 +1032,296 @@ const ManagerSalesAnalytics = ({ managers, months, activeMonthName, onActiveMont
   );
 };
 
+const SeminarSalesAnalytics = ({ seminars, months, activeMonthName, onActiveMonthChange }) => {
+  const [highlightedSeminarId, setHighlightedSeminarId] = useState("");
+  const [expandedSeminarId, setExpandedSeminarId] = useState("");
+  const activeMonth = months.find((month) => month.name === activeMonthName) || months[months.length - 1];
+
+  useEffect(() => {
+    if (!months.length) {
+      return;
+    }
+
+    const monthExists = months.some((month) => month.name === activeMonthName);
+    if (!monthExists) {
+      onActiveMonthChange(months[months.length - 1].name);
+    }
+  }, [activeMonthName, months, onActiveMonthChange]);
+
+  if (!seminars.length || !activeMonth) {
+    return (
+      <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+        <FileText className="mx-auto mb-4 text-slate-300" size={36} />
+        <h2 className="text-xl font-bold text-slate-800">Семинары не загружены</h2>
+        <p className="mt-2 text-sm text-slate-500">Пока есть данные только по тюменским мероприятиям.</p>
+      </div>
+    );
+  }
+
+  const monthSeminars = seminars
+    .filter((seminar) => seminar.month === activeMonth.name)
+    .map((seminar, index) => ({
+      ...seminar,
+      color: SEMINAR_COLORS[index % SEMINAR_COLORS.length],
+    }))
+    .sort((a, b) => b.profit - a.profit || b.sales - a.sales);
+  const totalSales = monthSeminars.reduce((sum, seminar) => sum + (seminar.sales || 0), 0);
+  const totalExpenses = monthSeminars.reduce((sum, seminar) => sum + (seminar.expenses || 0), 0);
+  const totalProfit = monthSeminars.reduce((sum, seminar) => sum + (seminar.profit || 0), 0);
+  const chartData = monthSeminars.filter((seminar) => seminar.sales > 0);
+
+  return (
+    <div className="space-y-8">
+      <div className="rounded-2xl bg-white p-4">
+        <div className="flex w-full flex-nowrap gap-3 overflow-x-auto md:overflow-visible">
+          {months.map((month) => (
+            <button
+              key={month.name}
+              type="button"
+              onClick={() => onActiveMonthChange(month.name)}
+              className={`min-w-32 shrink-0 rounded-full px-5 py-2 text-sm font-bold transition-colors md:min-w-0 md:flex-1 ${
+                activeMonth.name === month.name
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              {month.name}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(520px,0.9fr)]">
+        <div className="rounded-2xl bg-white p-3 md:p-5">
+          <div className="mb-4">
+            <h2 className="text-xl font-bold text-slate-800">Семинары: {activeMonth.name}</h2>
+            <p className="text-sm text-slate-500">Сектор показывает продажи по мероприятию, рейтинг справа отсортирован по прибыли.</p>
+          </div>
+          <div className="h-[300px] md:h-[420px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={chartData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={90}
+                  outerRadius={160}
+                  paddingAngle={3}
+                  dataKey="sales"
+                  onClick={(entry) => setHighlightedSeminarId(entry.id)}
+                >
+                  {chartData.map((entry) => (
+                    <Cell
+                      key={entry.id}
+                      fill={entry.color}
+                      stroke={highlightedSeminarId === entry.id ? "#0f172a" : "#ffffff"}
+                      strokeWidth={highlightedSeminarId === entry.id ? 3 : 2}
+                    />
+                  ))}
+                </Pie>
+                <Tooltip
+                  content={({ active, payload }) => {
+                    if (!active || !payload?.length) {
+                      return null;
+                    }
+
+                    const seminar = payload[0]?.payload;
+                    return (
+                      <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-xl">
+                        <div className="font-black text-slate-800">{seminar.brand}</div>
+                        <div className="mt-1 text-sm font-bold text-blue-600">Продажи: {formatCurrency(seminar.sales)}</div>
+                        <div className="text-sm font-semibold text-slate-500">
+                          Участники: {seminar.participantsCount} чел.
+                        </div>
+                      </div>
+                    );
+                  }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          {monthSeminars.map((seminar) => {
+            const isHighlighted = highlightedSeminarId === seminar.id;
+            const isExpanded = expandedSeminarId === seminar.id;
+            const revenueShare = totalSales ? (seminar.sales / totalSales) * 100 : 0;
+            const profitColorClass = seminar.profit >= 0 ? "text-emerald-600" : "text-red-500";
+
+            return (
+              <React.Fragment key={seminar.id}>
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setHighlightedSeminarId(isHighlighted ? "" : seminar.id)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      setHighlightedSeminarId(isHighlighted ? "" : seminar.id);
+                    }
+                  }}
+                  className={`grid w-full grid-cols-1 gap-4 rounded-2xl p-4 text-left transition-colors 2xl:grid-cols-[minmax(220px,1fr)_auto] 2xl:items-center ${
+                    isHighlighted ? "bg-blue-50 ring-2 ring-blue-200" : "bg-slate-50 hover:bg-slate-100"
+                  }`}
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="h-4 w-4 shrink-0 rounded-full" style={{ backgroundColor: seminar.color }} />
+                    <div className="min-w-0">
+                      <div className="break-words text-lg font-black text-slate-800">{seminar.brand}</div>
+                      <div className="text-sm font-semibold text-slate-400">
+                        {formatDateRu(seminar.date)} · {seminar.trainer}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 gap-3 text-left sm:grid-cols-3 2xl:text-right">
+                    <div>
+                      <div className="text-xs font-black uppercase tracking-wider text-slate-400">Продажи</div>
+                      <div className="text-sm font-black text-slate-800">{formatCurrency(seminar.sales)}</div>
+                      <div className="text-xs font-semibold text-slate-400">{formatPercent(revenueShare)} от семинаров</div>
+                    </div>
+                    <div>
+                      <div className="text-xs font-black uppercase tracking-wider text-slate-400">Расходы</div>
+                      <div className="text-sm font-black text-slate-700">{formatCurrency(seminar.expenses)}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs font-black uppercase tracking-wider text-slate-400">Прибыль</div>
+                      <div className={`text-sm font-black ${profitColorClass}`}>{formatCurrency(seminar.profit)}</div>
+                      <div className="text-xs font-semibold text-slate-400">ROI {formatPercent(seminar.roi)}</div>
+                    </div>
+                  </div>
+                  <div className="col-span-full flex flex-col gap-3 border-t border-slate-200 pt-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="text-sm font-bold text-slate-500">
+                      Количество участников: <span className="text-slate-800">{seminar.participantsCount} чел.</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setExpandedSeminarId(isExpanded ? "" : seminar.id);
+                      }}
+                      className={`inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-bold transition-colors ${
+                        isExpanded ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      }`}
+                    >
+                      <ChevronDown size={16} className={isExpanded ? "rotate-180" : ""} />
+                      Подробнее
+                    </button>
+                  </div>
+                </div>
+
+                {isExpanded && (
+                  <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
+                    <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                      <div>
+                        <div className="text-sm font-bold text-slate-800">Участники: {seminar.brand}</div>
+                        <div className="text-xs font-semibold text-slate-400">
+                          Факт участников: {seminar.participantsCount} · сумма по списку: {formatCurrency(seminar.participantSalesTotal)}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                      {seminar.participants.map((participant) => (
+                        <div key={`${seminar.id}-${participant.name}`} className="rounded-xl bg-white px-4 py-3">
+                          <div className="break-words text-sm font-bold text-slate-800">{participant.name}</div>
+                          <div className="mt-1 text-base font-black text-blue-600">{formatCurrency(participant.sales)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </React.Fragment>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="rounded-2xl bg-slate-50 p-5">
+          <div className="text-xs font-black uppercase tracking-wider text-slate-400">Итого продажи</div>
+          <div className="mt-2 text-2xl font-black text-slate-800">{formatCurrency(totalSales)}</div>
+        </div>
+        <div className="rounded-2xl bg-slate-50 p-5">
+          <div className="text-xs font-black uppercase tracking-wider text-slate-400">Итого расходы</div>
+          <div className="mt-2 text-2xl font-black text-slate-800">{formatCurrency(totalExpenses)}</div>
+        </div>
+        <div className="rounded-2xl bg-slate-50 p-5">
+          <div className="text-xs font-black uppercase tracking-wider text-slate-400">Итого прибыль</div>
+          <div className={`mt-2 text-2xl font-black ${totalProfit >= 0 ? "text-emerald-600" : "text-red-500"}`}>
+            {formatCurrency(totalProfit)}
+          </div>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto rounded-2xl border border-slate-100 bg-white">
+        <table className="w-full min-w-[920px] text-left text-sm">
+          <thead>
+            <tr className="bg-slate-50 text-slate-500 uppercase tracking-wider">
+              <th className="px-5 py-4 font-bold">Дата</th>
+              <th className="px-5 py-4 font-bold">Бренд</th>
+              <th className="px-5 py-4 font-bold">Тренер</th>
+              <th className="px-5 py-4 font-bold text-right">Регистрации</th>
+              <th className="px-5 py-4 font-bold text-right">Участники</th>
+              <th className="px-5 py-4 font-bold text-right">Продажи</th>
+              <th className="px-5 py-4 font-bold text-right">Расходы</th>
+              <th className="px-5 py-4 font-bold text-right">Прибыль</th>
+              <th className="px-5 py-4 font-bold text-right">ROI</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {monthSeminars.map((seminar) => (
+              <tr key={`table-${seminar.id}`} className="hover:bg-slate-50/70">
+                <td className="px-5 py-4 font-semibold text-slate-600">{formatDateRu(seminar.date)}</td>
+                <td className="px-5 py-4 font-black text-slate-800">{seminar.brand}</td>
+                <td className="px-5 py-4 text-slate-600">{seminar.trainer}</td>
+                <td className="px-5 py-4 text-right text-slate-600">{seminar.registrations}</td>
+                <td className="px-5 py-4 text-right text-slate-600">{seminar.participantsCount}</td>
+                <td className="px-5 py-4 text-right font-bold text-blue-600">{formatCurrency(seminar.sales)}</td>
+                <td className="px-5 py-4 text-right text-slate-600">{formatCurrency(seminar.expenses)}</td>
+                <td className={`px-5 py-4 text-right font-black ${seminar.profit >= 0 ? "text-emerald-600" : "text-red-500"}`}>
+                  {formatCurrency(seminar.profit)}
+                </td>
+                <td className={`px-5 py-4 text-right font-bold ${seminar.roi >= 0 ? "text-emerald-600" : "text-red-500"}`}>
+                  {formatPercent(seminar.roi)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
 const App = () => {
   const [portalMode, setPortalMode] = useState("finances");
   const [activeTab, setActiveTab] = useState("overview");
   const [activeSalesTab, setActiveSalesTab] = useState("brands");
   const [activeBusinessUnit, setActiveBusinessUnit] = useState("tyumen");
   const activeBusinessLabel = BUSINESS_UNITS.find((unit) => unit.id === activeBusinessUnit)?.label || "Тюмень";
-  const activeFinanceSheetId = FINANCE_SHEET_IDS[activeBusinessUnit] || "";
-  const [processedData, setProcessedData] = useState(FALLBACK_DATA);
+  const financeData = importedReports.finance[activeBusinessUnit] || importedReports.finance.tyumen;
+  const [processedData, setProcessedData] = useState(importedReports.finance.tyumen);
   const brandSalesData = useMemo(() => BRAND_SALES_BY_CITY[activeBusinessUnit] || [], [activeBusinessUnit]);
   const managerSalesData = useMemo(() => MANAGER_SALES_BY_CITY[activeBusinessUnit] || [], [activeBusinessUnit]);
+  const seminarData = useMemo(() => SEMINAR_DATA_BY_CITY[activeBusinessUnit] || [], [activeBusinessUnit]);
   const [selectedBrandName, setSelectedBrandName] = useState("");
   const [expandedBrandName, setExpandedBrandName] = useState("");
   const [activeBrandMonthName, setActiveBrandMonthName] = useState("");
   const [activeManagerMonthName, setActiveManagerMonthName] = useState("");
-  const [selectedMonth, setSelectedMonth] = useState(FALLBACK_DATA[FALLBACK_DATA.length - 1]);
+  const [activeSeminarMonthName, setActiveSeminarMonthName] = useState("");
+  const [selectedMonth, setSelectedMonth] = useState(importedReports.finance.tyumen.at(-1));
   const [cardMonths, setCardMonths] = useState({
-    revenue: FALLBACK_DATA[FALLBACK_DATA.length - 1].name,
-    profit: FALLBACK_DATA[FALLBACK_DATA.length - 1].name,
-    expenses: FALLBACK_DATA[FALLBACK_DATA.length - 1].name,
+    revenue: importedReports.finance.tyumen.at(-1).name,
+    profit: importedReports.finance.tyumen.at(-1).name,
+    expenses: importedReports.finance.tyumen.at(-1).name,
   });
   const [expenseTrendSelection, setExpenseTrendSelection] = useState(null);
-  const [loading, setLoading] = useState(Boolean(activeFinanceSheetId));
-  const [error, setError] = useState("");
-  const [sourceMode, setSourceMode] = useState(activeFinanceSheetId ? "google" : "fallback");
-
   useEffect(() => {
-    const run = async () => {
-      if (!activeFinanceSheetId) {
-        const fallbackLatestMonth = FALLBACK_DATA[FALLBACK_DATA.length - 1];
-        setProcessedData(FALLBACK_DATA);
-        setSelectedMonth(fallbackLatestMonth);
-        setCardMonths({
-          revenue: fallbackLatestMonth.name,
-          profit: fallbackLatestMonth.name,
-          expenses: fallbackLatestMonth.name,
-        });
-        setSourceMode("fallback");
-        return;
-      }
-
-      setLoading(true);
-      setError("");
-      try {
-        const data = limitMonthsByName(
-          await loadDashboardDataFromGoogleSheets(activeFinanceSheetId),
-          FINANCE_MONTH_LIMITS[activeBusinessUnit],
-        );
-        if (!data.length) {
-          throw new Error(`В Google Sheets для ${activeBusinessLabel} не найдено заполненных месяцев (выручка > 0).`);
-        }
-        setProcessedData(data);
-        setSelectedMonth(data[data.length - 1]);
-        setCardMonths({
-          revenue: data[data.length - 1].name,
-          profit: data[data.length - 1].name,
-          expenses: data[data.length - 1].name,
-        });
-        setSourceMode("google");
-      } catch (loadError) {
-        setProcessedData(FALLBACK_DATA);
-        setSelectedMonth(FALLBACK_DATA[FALLBACK_DATA.length - 1]);
-        setCardMonths({
-          revenue: FALLBACK_DATA[FALLBACK_DATA.length - 1].name,
-          profit: FALLBACK_DATA[FALLBACK_DATA.length - 1].name,
-          expenses: FALLBACK_DATA[FALLBACK_DATA.length - 1].name,
-        });
-        setError(loadError.message || `Не удалось загрузить данные из Google Sheets для ${activeBusinessLabel}.`);
-        setSourceMode("fallback");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    run();
-  }, [activeBusinessLabel, activeBusinessUnit, activeFinanceSheetId]);
+    const last = financeData[financeData.length - 1];
+    setProcessedData(financeData);
+    setSelectedMonth(last);
+    setCardMonths({ revenue: last.name, profit: last.name, expenses: last.name });
+  }, [financeData]);
 
   const firstMonth = processedData[0];
   const latestMonth = processedData[processedData.length - 1];
@@ -1110,10 +1331,10 @@ const App = () => {
     );
 
     return availableMonthNames.map((monthName) => {
-      const financeMonth = processedData.find((month) => month.name === monthName);
+      const financeMonth = importedReports.finance[activeBusinessUnit]?.find((month) => month.name === monthName);
       const revenueOverride = getSalesRevenueOverride(activeBusinessUnit, monthName);
       const salesTotal = brandSalesData.reduce((sum, brand) => sum + getBrandMonthSales(brand, monthName), 0);
-      const revenue = revenueOverride || financeMonth?.revenue || salesTotal;
+      const revenue = financeMonth?.revenue || revenueOverride || salesTotal;
 
       return { ...(financeMonth || { name: monthName }), revenue };
     });
@@ -1126,16 +1347,31 @@ const App = () => {
     );
 
     return availableMonthNames.map((monthName) => {
-      const financeMonth = processedData.find((month) => month.name === monthName);
+      const financeMonth = importedReports.finance[activeBusinessUnit]?.find((month) => month.name === monthName);
       const revenueOverride = getSalesRevenueOverride(activeBusinessUnit, monthName);
       const salesTotal = managerSalesData.reduce((sum, manager) => sum + getBrandMonthSales(manager, monthName), 0);
-      const revenue = revenueOverride || financeMonth?.revenue || salesTotal;
+      const revenue = financeMonth?.revenue || revenueOverride || salesTotal;
 
       return { ...(financeMonth || { name: monthName }), revenue };
     });
   }, [activeBusinessUnit, managerSalesData, processedData]);
   const latestManagerMonth = managerMonths[managerMonths.length - 1] || latestMonth;
   const activeManagerMonth = managerMonths.find((month) => month.name === activeManagerMonthName) || latestManagerMonth;
+  const seminarMonths = useMemo(() => {
+    const availableMonthNames = BRAND_MONTH_ORDER.filter((monthName) =>
+      seminarData.some((seminar) => seminar.month === monthName),
+    );
+
+    return availableMonthNames.map((monthName) => {
+      const sales = seminarData
+        .filter((seminar) => seminar.month === monthName)
+        .reduce((sum, seminar) => sum + (seminar.sales || 0), 0);
+
+      return { name: monthName, revenue: sales };
+    });
+  }, [seminarData]);
+  const latestSeminarMonth = seminarMonths[seminarMonths.length - 1];
+  const activeSeminarMonth = seminarMonths.find((month) => month.name === activeSeminarMonthName) || latestSeminarMonth;
   const bestBrand = useMemo(() => {
     if (!brandSalesData.length || !activeBrandMonth) {
       return null;
@@ -1172,11 +1408,52 @@ const App = () => {
       })
       .sort((a, b) => b.sales - a.sales)[0];
   }, [activeManagerMonth, managerSalesData]);
+  const bestSeminar = useMemo(() => {
+    if (!seminarData.length || !activeSeminarMonth) {
+      return null;
+    }
+
+    return seminarData
+      .filter((seminar) => seminar.month === activeSeminarMonth.name)
+      .sort((a, b) => b.profit - a.profit || b.sales - a.sales)[0];
+  }, [activeSeminarMonth, seminarData]);
+  const activeSeminarStats = useMemo(() => {
+    if (!activeSeminarMonth) {
+      return { sales: 0, expenses: 0, profit: 0, participants: 0, events: 0, profitableEvents: 0, averageRoi: 0 };
+    }
+
+    const seminars = seminarData.filter((seminar) => seminar.month === activeSeminarMonth.name);
+    const stats = seminars.reduce(
+      (current, seminar) => ({
+        sales: current.sales + (seminar.sales || 0),
+        expenses: current.expenses + (seminar.expenses || 0),
+        profit: current.profit + (seminar.profit || 0),
+        participants: current.participants + (seminar.participantsCount || 0),
+        events: current.events + 1,
+        profitableEvents: current.profitableEvents + ((seminar.profit || 0) > 0 ? 1 : 0),
+        roiSum: current.roiSum + (seminar.roi || 0),
+      }),
+      { sales: 0, expenses: 0, profit: 0, participants: 0, events: 0, profitableEvents: 0, roiSum: 0 },
+    );
+
+    return {
+      ...stats,
+      averageRoi: stats.events ? stats.roiSum / stats.events : 0,
+    };
+  }, [activeSeminarMonth, seminarData]);
   const activeSalesMonthName =
     activeSalesTab === "managers" && activeManagerMonth
       ? activeManagerMonth.name
+      : activeSalesTab === "seminars" && activeSeminarMonth
+        ? activeSeminarMonth.name
       : activeBrandMonth?.name || latestMonth?.name || "";
   const totalSalesForActiveUnit = useMemo(() => {
+    if (activeSalesTab === "seminars") {
+      return seminarData
+        .filter((seminar) => seminar.month === activeSalesMonthName)
+        .reduce((sum, seminar) => sum + (seminar.sales || 0), 0);
+    }
+
     const revenueOverride = getSalesRevenueOverride(activeBusinessUnit, activeSalesMonthName);
     if (revenueOverride) {
       return revenueOverride;
@@ -1186,7 +1463,7 @@ const App = () => {
       (sum, brand) => sum + getBrandMonthSales(brand, activeSalesMonthName),
       0,
     );
-  }, [activeBusinessUnit, activeSalesMonthName, brandSalesData]);
+  }, [activeBusinessUnit, activeSalesMonthName, activeSalesTab, brandSalesData, seminarData]);
 
   useEffect(() => {
     if (!brandMonths.length) {
@@ -1209,6 +1486,17 @@ const App = () => {
       setActiveManagerMonthName(latestManagerMonth.name);
     }
   }, [activeManagerMonthName, latestManagerMonth.name, managerMonths]);
+
+  useEffect(() => {
+    if (!seminarMonths.length) {
+      return;
+    }
+
+    const monthExists = seminarMonths.some((month) => month.name === activeSeminarMonthName);
+    if (!monthExists) {
+      setActiveSeminarMonthName(latestSeminarMonth.name);
+    }
+  }, [activeSeminarMonthName, latestSeminarMonth?.name, seminarMonths]);
 
   useEffect(() => {
     setSelectedBrandName("");
@@ -1316,7 +1604,7 @@ const App = () => {
       return;
     }
 
-    if (!FINANCE_SHEET_IDS[activeBusinessUnit]) {
+    if (!importedReports.finance[activeBusinessUnit]) {
       setActiveBusinessUnit("tyumen");
     }
     setPortalMode("finances");
@@ -1364,7 +1652,7 @@ const App = () => {
             </h1>
             <p className="text-slate-500 mt-1">
               {portalMode === "finances"
-                ? `${activeBusinessLabel}. Источник: ${sourceMode === "google" ? "Google Sheets" : "Демо-данные"}`
+                ? `${activeBusinessLabel}. Источник: отчёт ОПиУ`
                 : `${activeBusinessLabel}. Источник продаж: локальный файл брендов`}
             </p>
           </div>
@@ -1404,24 +1692,6 @@ const App = () => {
             </div>
           </div>
         </header>
-
-        {portalMode === "finances" && loading && (
-          <div className="mb-6 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-blue-700 text-sm">
-            Загружаю данные из Google Sheets для {activeBusinessLabel}...
-          </div>
-        )}
-
-        {portalMode === "finances" && error && (
-          <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-800 text-sm">
-            {error} Сейчас показываю последние рабочие (демо) данные.
-          </div>
-        )}
-
-        {portalMode === "finances" && !activeFinanceSheetId && (
-          <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-900 text-sm">
-            Для {activeBusinessLabel} пока не указан ID Google-таблицы.
-          </div>
-        )}
 
         {portalMode === "finances" ? (
           <>
@@ -1832,14 +2102,30 @@ const App = () => {
         ) : (
           <>
             {activeSalesTab !== "plan" && (
-              <div className="mb-8 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-                <Card
-                  title={`Продажи (${activeSalesMonthName})`}
-                  value={formatCurrency(totalSalesForActiveUnit)}
-                  subValue={`Общая сумма: ${activeBusinessLabel}`}
-                  icon={ShoppingBag}
-                  colorClass="bg-blue-500"
-                />
+              <div
+                className={`mb-8 grid grid-cols-1 gap-5 md:grid-cols-2 ${
+                  activeSalesTab === "seminars" ? "xl:grid-cols-5" : "xl:grid-cols-3"
+                }`}
+              >
+                {activeSalesTab === "seminars" ? (
+                  <>
+                    <Card
+                      title={`Прибыль от семинаров${activeSeminarMonth ? ` (${activeSeminarMonth.name})` : ""}`}
+                      value={formatCurrency(activeSeminarStats.profit)}
+                      subValue={`Продажи: ${formatCurrency(activeSeminarStats.sales)} · Расходы: ${formatCurrency(activeSeminarStats.expenses)}`}
+                      icon={CircleDollarSign}
+                      colorClass="bg-emerald-500"
+                    />
+                  </>
+                ) : (
+                  <Card
+                    title={`Продажи (${activeSalesMonthName})`}
+                    value={formatCurrency(totalSalesForActiveUnit)}
+                    subValue={`Общая сумма: ${activeBusinessLabel}`}
+                    icon={ShoppingBag}
+                    colorClass="bg-blue-500"
+                  />
+                )}
                 {activeSalesTab === "managers" && (
                   <Card
                     title={`Лучший продавец (${activeManagerMonth.name})`}
@@ -1867,7 +2153,40 @@ const App = () => {
                   />
                 )}
                 {activeSalesTab === "seminars" && (
-                  <Card title="Лучший семинар" value="Данные скоро появятся" subValue="Будет аналитика семинаров" icon={FileText} colorClass="bg-amber-500" />
+                  <>
+                    <Card
+                      title={`Лучший семинар${activeSeminarMonth ? ` (${activeSeminarMonth.name})` : ""}`}
+                      value={bestSeminar?.brand || "Данные скоро появятся"}
+                      subValue={
+                        bestSeminar
+                          ? `${formatCurrency(bestSeminar.profit)} прибыль · ROI ${formatPercent(bestSeminar.roi)}`
+                          : "Пока есть данные только по Тюмени"
+                      }
+                      icon={FileText}
+                      colorClass="bg-amber-500"
+                    />
+                    <Card
+                      title={`Посетители семинаров${activeSeminarMonth ? ` (${activeSeminarMonth.name})` : ""}`}
+                      value={`${activeSeminarStats.participants} чел.`}
+                      subValue={`${activeSeminarStats.events} мероприятия`}
+                      icon={Users}
+                      colorClass="bg-blue-500"
+                    />
+                    <Card
+                      title={`Прибыльные семинары${activeSeminarMonth ? ` (${activeSeminarMonth.name})` : ""}`}
+                      value={`${activeSeminarStats.profitableEvents}/${activeSeminarStats.events}`}
+                      subValue="Семинары с прибылью"
+                      icon={TrendingUp}
+                      colorClass="bg-violet-500"
+                    />
+                    <Card
+                      title={`Средний ROI${activeSeminarMonth ? ` (${activeSeminarMonth.name})` : ""}`}
+                      value={formatPercent(activeSeminarStats.averageRoi)}
+                      subValue="Возврат на инвестиции"
+                      icon={Percent}
+                      colorClass="bg-fuchsia-500"
+                    />
+                  </>
                 )}
               </div>
             )}
@@ -1894,8 +2213,29 @@ const App = () => {
                   onActiveMonthChange={setActiveManagerMonthName}
                 />
               )}
-              {activeSalesTab === "seminars" && <PlaceholderChart title="Динамика продаж по семинарам" />}
-              {activeSalesTab === "plan" && <PlaceholderChart title="План продаж" />}
+              {activeSalesTab === "seminars" && (
+                <SeminarSalesAnalytics
+                  seminars={seminarData}
+                  months={seminarMonths}
+                  activeMonthName={activeSeminarMonth?.name || ""}
+                  onActiveMonthChange={setActiveSeminarMonthName}
+                />
+              )}
+              {activeSalesTab === "plan" && (importedReports.motivation[activeBusinessUnit] ? (
+                <div className="rounded-lg bg-white p-5 md:p-8">
+                  <h2 className="text-xl font-black text-slate-800">План продаж: Сургут, сентябрь 2026</h2>
+                  <div className="my-6 grid grid-cols-2 gap-4">
+                    <div><div className="text-sm text-slate-500">План офиса</div><div className="text-xl font-bold">{formatCurrency(importedReports.motivation.surgut.plan)}</div></div>
+                    <div><div className="text-sm text-slate-500">Факт продаж</div><div className="text-xl font-bold text-emerald-600">{formatCurrency(importedReports.totals.surgut.Сентябрь)}</div><div className="text-sm text-slate-500">{formatPercent(importedReports.totals.surgut.Сентябрь / importedReports.motivation.surgut.plan * 100)} выполнения</div></div>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm">
+                      <thead><tr><th className="p-3">Сотрудники</th><th className="p-3">Ниже плана</th><th className="p-3">План выполнен</th><th className="p-3">Выше плана</th></tr></thead>
+                      <tbody>{importedReports.motivation.surgut.salaryLevels.map((level) => <tr key={level.name} className="border-t border-slate-100"><td className="p-3 font-bold">{level.name}</td><td className="p-3">{formatCurrency(level.below)}</td><td className="p-3">{formatCurrency(level.done)}</td><td className="p-3">{formatCurrency(level.above)}</td></tr>)}</tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : <PlaceholderChart title="План продаж" />)}
             </div>
           </>
         )}
